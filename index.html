@@ -258,16 +258,6 @@ y = headerY + Math.max(logoH, shopBlockH) + 6;
           y += 8;
         }
 
-        // logo
-        if (headerData) {
-          const props = doc.getImageProperties(headerData);
-          const maxH  = 30;
-          const imgH  = Math.min(maxH, w * (props.height / props.width));
-          const imgW  = imgH * (props.width / props.height);
-          doc.addImage(headerData, 'PNG', pad, y, imgW, imgH);
-          y += imgH + 6;
-        }
-
         // build and draw table
         const body = rows.map(r => {
           const qty   = parseInt(r.Quantity)||0;
