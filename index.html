@@ -248,41 +248,64 @@ document.addEventListener('DOMContentLoaded', () => {
       const grand    = subTotal - discount;
 
       // draw table with foot rows
-      doc.autoTable({
-        head: [ ['Item','Qty','Price','Line Total'] ],
-        body: bodyRows,
-        foot: [
-          // divider
-          [{ content:'', colSpan:4, styles:{ fillColor:null, lineWidth:0.2 } }],
-          // Subtotal & Discount inline
-          ['', '', 'Subtotal', subTotal.toFixed(2)],
-          ['', '', 'Discount', discount.toFixed(2)],
-          // heavy divider before grand total
-          [{ content:'', colSpan:4, styles:{ fillColor:null, lineWidth:0.8 } }],
-          // grand total row
-          ['', '', 'Grand Total', grand.toFixed(2)]
-        ],
-        startY: y,
-        theme: 'plain',
-        tableLineWidth: (row,data) => {
-          // thick top border above header
-          if (data.section==='head') return 0.8;
-          // thin bottom border under every row in head/body
-          if (data.section==='body') return 0.2;
-          // head of foot row index0 (divider) already styled
-          if (data.section==='foot') return data.row.index===3 ? 0.8 : 0.2;
-          return 0;
-        },
-        styles:        { cellPadding:2, lineColor:0 },
-        headStyles:    { textColor:0 },
-        footStyles:    { textColor:0 },
-        columnStyles: {
-          0: { cellWidth: w - 2*pad - 120 },
-          1: { halign:'right' },
-          2: { halign:'right' },
-          3: { halign:'right' }
-        }
-      });
+      // … after computing `bodyRows`, `subTotal`, `discount`, `grand` and `y` …
+
+doc.autoTable({
+  head: [
+    ['Item','Qty','Price','Line Total']
+  ],
+  body: bodyRows,
+  foot: [
+    // first foot row: thin divider
+    [{ content:'', colSpan:4, styles:{ lineWidth:0.2 } }],
+    // subtotal + discount
+    ['', '', 'Subtotal',  subTotal.toFixed(2)],
+    ['', '', 'Discount',  discount.toFixed(2)],
+    // thick divider before final total
+    [{ content:'', colSpan:4, styles:{ lineWidth:0.8 } }],
+    // grand total row
+    ['', '', 'Grand Total', grand.toFixed(2)]
+  ],
+  startY: y,
+  theme: 'plain',      // no automatic borders
+  tableLineColor: 0,
+  tableLineWidth: (row, data) => {
+    if (data.section === 'head') return 0.8;                // thick above header
+    if (data.section === 'body') return 0.2;                // thin under each body row
+    // foot row 0 = thin divider; foot row 3 = thick divider
+    if (data.section === 'foot') {
+      return data.row.index === 3 ? 0.8 : 0.2;
+    }
+    return 0;
+  },
+  styles: {
+    cellPadding: 2,
+    lineColor: 0
+  },
+  headStyles: {
+    textColor: 0,
+    fontStyle: 'bold'
+  },
+  footStyles: {
+    textColor: 0
+  },
+  columnStyles: {
+    0: { cellWidth: (w - 2*pad) - 3*25 }, // item column takes remaining width
+    1: { cellWidth: 25, halign: 'right' },
+    2: { cellWidth: 25, halign: 'right' },
+    3: { cellWidth: 25, halign: 'right' }
+  },
+  drawCell: data => {
+    // remove vertical borders entirely
+    data.cell.styles.lineWidth = {
+      top:    data.cell.styles.lineWidth,
+      bottom: data.cell.styles.lineWidth,
+      left:   0,
+      right:  0
+    };
+  }
+});
+
 
       // footer text + QR
       const footerY = h - pad - 38.1;
