@@ -222,13 +222,33 @@
         const pad = 10;
         let y = pad;
 
-        // shop info (first two columns of first data row)
-        doc.setFontSize(14);
-        doc.text(rows[0]['Shop Name']||'', pad, y);
-        doc.setFontSize(10);
-        const addrLines = doc.splitTextToSize(rows[0]['Shop Address']||'', w - 2*pad);
-        doc.text(addrLines, pad, y + 6);
-        y += addrLines.length*6 + 4;
+        // HEADER: logo left, shop details right, same Y
+let headerY = pad;
+
+// draw logo if present
+let logoH = 0;
+if (headerData) {
+  const props = doc.getImageProperties(headerData);
+  const maxH  = 30; // mm
+  logoH = Math.min(maxH, w * (props.height / props.width));
+  const logoW = logoH * (props.width / props.height);
+  doc.addImage(headerData, 'PNG', pad, headerY, logoW, logoH);
+}
+
+// draw shop details on same baseline, right‑aligned
+const shopName    = rows[0]['Shop Name']    || '';
+const shopAddress = rows[0]['Shop Address'] || '';
+doc.setFontSize(14);
+doc.text(shopName, w - pad, headerY + 4, { align: 'right' });
+doc.setFontSize(10);
+// split address lines, draw starting slightly below the shop name
+const addrLines = doc.splitTextToSize(shopAddress, w - 2*pad - (logoH ? (logoH * (doc.getImageProperties(headerData).width / doc.getImageProperties(headerData).height) + 10) : 0));
+doc.text(addrLines, w - pad, headerY + 10, { align: 'right' });
+
+// advance Y past whichever is taller: logo or shop‑header block
+const shopBlockH = 10 + addrLines.length * 6;
+y = headerY + Math.max(logoH, shopBlockH) + 6;
+
 
         // optional date
         if (showDate) {
