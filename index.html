@@ -213,9 +213,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const doc = new jsPDF({ unit, format: [w, h] });
         const rows = parsedRows.filter(r => r.Invoice.toString().trim() === inv);
         if (rows.length === 0) continue;
+
+        const firstRow = rows[0];
         doc.setFont('helvetica');
         const pad = 10;
         let y = pad;
+
+        // Header: Logo and Shop Details
         let logoH = 0;
         if (headerData) {
           const p = doc.getImageProperties(headerData);
@@ -225,32 +229,61 @@ document.addEventListener('DOMContentLoaded', () => {
           const logoW = logoH * logoAspectRatio;
           doc.addImage(headerData, 'PNG', pad, y, logoW, logoH);
         }
-        const shopName = rows[0]['Shop Name'] || '';
-        const shopAddress = rows[0]['Shop Address'] || '';
+        const shopName = firstRow['Shop Name'] || '';
+        const shopAddress = firstRow['Shop Address'] || '';
         doc.setFontSize(14).text(shopName, w - pad, y + 4, { align: 'right' });
         doc.setFontSize(10);
         const addrLines = doc.splitTextToSize(shopAddress, w / 2 - pad);
         doc.text(addrLines, w - pad, y + 10, { align: 'right' });
-        y += Math.max(logoH, 10 + addrLines.length * 5) + 6;
-        if (showDate) {
-          doc.setFontSize(10).text(`Date: ${new Date().toLocaleDateString()}`, pad, y);
-          y += 8;
-        }
+        y += Math.max(logoH, 10 + addrLines.length * 5) + 10;
 
-        // Build table body from items
+        // "INVOICE" Title
+        doc.setFontSize(22).setFont(undefined, 'bold');
+        doc.text('INVOICE', w / 2, y, { align: 'center' });
+        doc.setFont(undefined, 'normal');
+        y += 15;
+        
+        // ======================= MODIFICATION START =========================
+        
+        // --- Customer Details and Date ---
+        const firstName = (firstRow['First Name'] || '').toString().trim();
+        const lastName = (firstRow['Last Name'] || '').toString().trim();
+        const customerPhone = (firstRow['Phone'] || '').toString().trim();
+        const customerAddress = (firstRow['Address'] || '').toString().trim();
+
+        // Intelligently combine First and Last Name
+        const fullName = [firstName, lastName].filter(Boolean).join(' ');
+        
+        doc.setFontSize(10).setFont(undefined, 'bold');
+        doc.text('Bill To:', pad, y);
+        doc.setFont(undefined, 'normal');
+        
+        let customerInfo = [];
+        if (fullName) customerInfo.push(fullName); // Use the combined full name
+        if (customerPhone) customerInfo.push(`Phone: ${customerPhone}`);
+        if (customerAddress) customerInfo.push(...doc.splitTextToSize(customerAddress, w/2 - pad));
+        
+        doc.text(customerInfo, pad, y + 5);
+
+        // Date on the right side
+        if (showDate) {
+          doc.setFontSize(10).text(`Date: ${new Date().toLocaleDateString()}`, w - pad, y, { align: 'right' });
+        }
+        
+        y += (customerInfo.length * 5) + 10;
+        
+        // ======================== MODIFICATION END ==========================
+
+        // --- Table ---
         const body = rows.map(r => {
           const qty = parseInt(r.Quantity) || 0;
           const price = parseFloat(r.Price) || 0;
           return [ (r.Items || '').replace(/\//g, '\n'), qty.toString(), price.toFixed(2), (qty * price).toFixed(2) ];
         });
-        
-        // Calculate totals
         const subTotal = body.reduce((sum, row) => sum + parseFloat(row[3]), 0);
-        const discount = parseFloat(rows[0].Discount) || 0;
+        const discount = parseFloat(firstRow.Discount) || 0;
         const grandTotal = subTotal - discount;
 
-        // ======================= MODIFICATION START =========================
-        // Add the summary rows directly to the table body
         body.push(
           ['', '', 'Subtotal', subTotal.toFixed(2)],
           ['', '', 'Discount', discount.toFixed(2)],
@@ -259,19 +292,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         doc.autoTable({
           head: [['Item', 'Qty', 'Price', 'Line Total']],
-          body: body, // Use the modified body with summary rows
-          // The 'foot' section is no longer needed
+          body: body,
           startY: y,
-          theme: 'grid', // CHANGED: Use the 'grid' theme for visible borders
+          theme: 'grid',
           styles: { cellPadding: 2, fontSize: 10 },
           headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold' },
           columnStyles: { 
-            0: { cellWidth: 'auto' }, // Item column
-            1: { halign: 'center' }, // Qty column
-            2: { halign: 'right' },  // Price column
-            3: { halign: 'right' }   // Line Total column
+            0: { cellWidth: 'auto' },
+            1: { halign: 'center' },
+            2: { halign: 'right' },
+            3: { halign: 'right' }
           },
-          // NEW: This hook styles the summary rows to be bold
           didParseCell: (data) => {
             const isSummaryRow = data.row.raw[2] === 'Subtotal' || 
                                  data.row.raw[2] === 'Discount' ||
@@ -281,8 +312,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
         });
-        // ======================== MODIFICATION END ==========================
 
+        // --- Footer ---
         const finalY = doc.autoTable.previous.finalY;
         const footerStartY = Math.max(finalY + 15, h - pad - 30);
         if (footerText) {
