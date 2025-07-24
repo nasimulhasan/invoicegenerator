@@ -255,31 +255,36 @@
         });
 
         doc.autoTable({
-          head: [['Item','Qty','Price','Line Total']],
-          body,
-          startY: y,
-          theme: 'grid',
-          tableLineColor: 0,
-          tableLineWidth: (row, data) => data.section === 'head' ? 0.8 : 0.2,
-          headStyles: { fillColor: false, textColor: 0, lineWidth: 0.8 },
-          styles:    { lineColor: 0, lineWidth: 0.2, cellPadding: 2 },
-          columnStyles: {
-            0: { cellWidth: w - 2 * pad - 120 },
-            1: { halign: 'right' },
-            2: { halign: 'right' },
-            3: { halign: 'right' }
-          },
-          drawCell: data => {
-            // remove left/right vertical borders
-            const lw = data.cell.styles.lineWidth;
-            data.cell.styles.lineWidth = {
-              top:    lw.top    || lw,
-              bottom: lw.bottom || lw,
-              left:   0,
-              right:  0
-            };
-          }
-        });
+  head: [['Item','Qty','Price','Line Total']],
+  body,
+  startY: y,
+  theme: 'grid',
+  tableLineColor: 0,
+  tableLineWidth: (row, data) => data.section === 'head' ? 0.8 : 0.2,
+
+  // remove vertical borders:
+  styles: {
+    lineColor: 0,
+    lineWidth: (row, data) => data.section === 'head' ? 0.8 : 0.2,
+    lineWidthLeft: 0,
+    lineWidthRight: 0,
+    cellPadding: 2
+  },
+  headStyles: {
+    fillColor: false,
+    textColor: 0,
+    lineWidth: (row, data) => 0.8,
+    lineWidthLeft: 0,
+    lineWidthRight: 0
+  },
+  columnStyles: {
+    0: { cellWidth: w - 2*pad - 120 },
+    1: { halign: 'right' },
+    2: { halign: 'right' },
+    3: { halign: 'right' }
+  }
+});
+
 
         // advance past table
         y = doc.lastAutoTable.finalY + 10;
