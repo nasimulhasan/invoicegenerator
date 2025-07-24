@@ -254,28 +254,25 @@
           ];
         });
 
-        doc.autoTable({
+       doc.autoTable({
   head: [['Item','Qty','Price','Line Total']],
   body,
   startY: y,
   theme: 'grid',
-  tableLineColor: 0,
-  tableLineWidth: (row, data) => data.section === 'head' ? 0.8 : 0.2,
 
-  // remove vertical borders:
-  styles: {
-    lineColor: 0,
-    lineWidth: (row, data) => data.section === 'head' ? 0.8 : 0.2,
-    lineWidthLeft: 0,
-    lineWidthRight: 0,
-    cellPadding: 2
-  },
+  // only draw horizontal lines
+  drawHorizontalLine: (data) => true,
+  drawVerticalLine:   (data) => false,
+
   headStyles: {
     fillColor: false,
     textColor: 0,
-    lineWidth: (row, data) => 0.8,
-    lineWidthLeft: 0,
-    lineWidthRight: 0
+    lineWidth: 0.8
+  },
+  styles: {
+    lineColor: 0,
+    lineWidth: 0.2,
+    cellPadding: 2
   },
   columnStyles: {
     0: { cellWidth: w - 2*pad - 120 },
