@@ -158,7 +158,10 @@
       const sheet = wb.Sheets[wb.SheetNames[0]];
       // shop header from A1
       window.shopHeader = (sheet.A1?.v || '').split('/').map(s=>s.trim());
-      parsedRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      parsedRows = XLSX.utils.sheet_to_json(sheet, {
+  range: 1,      // skip the first row (A1 shop info)
+  defval: ''     // fill empty cells with ''
+});
       // skip headers row2 automatically
       const invoices = [...new Set(parsedRows.map(r => (r.Invoice||'').trim()))];
       const sel = document.getElementById('invoiceSelect');
