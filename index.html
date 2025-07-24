@@ -121,10 +121,7 @@
   <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-  <!-- Main Logic -->
-
-
-  <script>
+ <script>
 document.addEventListener('DOMContentLoaded', () => {
   const { jsPDF } = window.jspdf;
 
@@ -153,10 +150,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('excelInput').addEventListener('change', async e => {
     const file = e.target.files[0];
     if (!file) return;
-    const arr = await new Response(file).arrayBuffer();
+    const arr = await file.arrayBuffer();
     const wb  = XLSX.read(arr, { type: 'array' });
     parsedRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
-
     const invoices = [...new Set(parsedRows.map(r => (r.Invoice||'').trim()))];
     const sel = document.getElementById('invoiceSelect');
     sel.innerHTML = '';
@@ -184,19 +180,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const headerData = await loadImage(headerFile);
     const footerData = await loadImage(footerFile);
 
+    // page size
     let [w,h,unit] = document.getElementById('presetSize').value.split(',');
     w = +w; h = +h;
 
+    // pick invoices
     const selected = Array.from(document.getElementById('invoiceSelect').selectedOptions)
                           .map(o => o.value);
     const targets = selected.length
       ? selected
-      : [...new Set(parsedRows.map(r => r.Invoice.trim()))];
+      : [...new Set(parsedRows.map(r=>r.Invoice.trim()))];
 
     const zip = new JSZip();
 
     for (const inv of targets) {
-      const rows = parsedRows.filter(r => r.Invoice.trim() === inv);
+      const rows = parsedRows.filter(r=>r.Invoice.trim()===inv);
       if (!rows.length) continue;
 
       const doc = new jsPDF({ unit, format: [w, h] });
@@ -205,37 +203,34 @@ document.addEventListener('DOMContentLoaded', () => {
       const pad = 10;
       let y = pad;
 
-      // HEADER: logo + shop details
+      // draw header logo
       let logoH = 0;
       if (headerData) {
-        const props = doc.getImageProperties(headerData);
-        const maxH  = 30;
-        logoH = Math.min(maxH, w * (props.height/props.width));
-        const logoW = logoH * (props.width/props.height);
-        doc.addImage(headerData,'PNG',pad,y,logoW,logoH);
+        const p = doc.getImageProperties(headerData);
+        logoH = Math.min(30, w * (p.height/p.width));
+        const logoW = logoH * (p.width/p.height);
+        doc.addImage(headerData, 'PNG', pad, y, logoW, logoH);
       }
+
+      // shop details (A1) right‑aligned
       const shopName    = rows[0]['Shop Name']    || '';
       const shopAddress = rows[0]['Shop Address'] || '';
       doc.setFontSize(14);
-      doc.text(shopName, w-pad, y+4, { align:'right' });
+      doc.text(shopName, w - pad, y + 4, { align:'right' });
       doc.setFontSize(10);
-      const addrLines = doc.splitTextToSize(
-        shopAddress,
-        w - 2*pad - (logoH ? (logoH * (doc.getImageProperties(headerData).width/ doc.getImageProperties(headerData).height) + 10) : 0)
-      );
-      doc.text(addrLines, w-pad, y+10, { align:'right' });
+      const lines = doc.splitTextToSize(shopAddress, w - 2*pad - logoH - 5);
+      doc.text(lines, w - pad, y + 10, { align:'right' });
 
-      y += Math.max(logoH, 10 + addrLines.length*6) + 6;
+      y += Math.max(logoH, 10 + lines.length*6) + 6;
 
       // optional date
       if (showDate) {
         doc.setFontSize(10);
-        const ds = new Date().toLocaleDateString();
-        doc.text(`Date: ${ds}`, pad, y);
+        doc.text(`Date: ${new Date().toLocaleDateString()}`, pad, y);
         y += 8;
       }
 
-      // build item rows
+      // build table body
       const bodyRows = rows.map(r => {
         const qty   = parseInt(r.Quantity)||0;
         const price = parseFloat(r.Price)||0;
@@ -248,68 +243,48 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       // compute totals
-      const subTotal = bodyRows.reduce((s,row)=>s + parseFloat(row[3]), 0);
+      const subTotal = bodyRows.reduce((s,r)=>s + parseFloat(r[3]), 0);
       const discount = parseFloat(rows[0].Discount)||0;
       const grand    = subTotal - discount;
 
-      // totals in foot
-      const footRows = [
-        [{ content:'', colSpan:4, styles:{ lineWidth:0.8 } }],
-        ['Subtotal','','', subTotal.toFixed(2)],
-        ['Discount','','', discount.toFixed(2)],
-        [{ content:'Grand Total', colSpan:3, styles:{ fontStyle:'bold', halign:'right' } }, grand.toFixed(2)]
-      ];
+      // draw table with foot rows
+      doc.autoTable({
+        head: [ ['Item','Qty','Price','Line Total'] ],
+        body: bodyRows,
+        foot: [
+          // divider
+          [{ content:'', colSpan:4, styles:{ fillColor:null, lineWidth:0.2 } }],
+          // Subtotal & Discount inline
+          ['', '', 'Subtotal', subTotal.toFixed(2)],
+          ['', '', 'Discount', discount.toFixed(2)],
+          // heavy divider before grand total
+          [{ content:'', colSpan:4, styles:{ fillColor:null, lineWidth:0.8 } }],
+          // grand total row
+          ['', '', 'Grand Total', grand.toFixed(2)]
+        ],
+        startY: y,
+        theme: 'plain',
+        tableLineWidth: (row,data) => {
+          // thick top border above header
+          if (data.section==='head') return 0.8;
+          // thin bottom border under every row in head/body
+          if (data.section==='body') return 0.2;
+          // head of foot row index0 (divider) already styled
+          if (data.section==='foot') return data.row.index===3 ? 0.8 : 0.2;
+          return 0;
+        },
+        styles:        { cellPadding:2, lineColor:0 },
+        headStyles:    { textColor:0 },
+        footStyles:    { textColor:0 },
+        columnStyles: {
+          0: { cellWidth: w - 2*pad - 120 },
+          1: { halign:'right' },
+          2: { halign:'right' },
+          3: { halign:'right' }
+        }
+      });
 
-      // draw table with no vertical borders
-     doc.autoTable({
-  head: [
-    ['Item','Qty','Price','Line Total']
-  ],
-  body: bodyRows,
-  foot: [
-    // thin divider row
-    [{ content: '', colSpan: 4, styles: { fillColor: null } }],
-    // Subtotal / Discount / Grand Total
-    ['Subtotal', '', '', subTotal.toFixed(2)],
-    ['Discount', '', '', discount.toFixed(2)],
-    [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, grand.toFixed(2)]
-  ],
-  startY: y,
-  theme: 'plain',              // <-- no borders at all by default
-  tableLineWidth: (row, data) => {
-    // draw a thick line above the header
-    if (data.section === 'head') return 0.8;
-    // draw a thin line above the totals divider (foot row 0)
-    if (data.section === 'foot' && data.row.index === 0) return 0.2;
-    // draw a thin line below each foot row
-    if (data.section === 'foot') return 0.2;
-    return 0;                   // no other lines
-  },
-  headStyles: {
-    fillColor: null,
-    textColor: 0,
-    lineWidth: 0.8
-  },
-  footStyles: {
-    fillColor: null,
-    textColor: 0,
-    lineWidth: 0.2
-  },
-  styles: {
-    lineColor: 0,
-    cellPadding: 2
-  },
-  columnStyles: {
-    0: { cellWidth: w - 2*pad - 120 },
-    1: { halign: 'right' },
-    2: { halign: 'right' },
-    3: { halign: 'right' }
-  }
-});
-
-
-
-      // FOOTER
+      // footer text + QR
       const footerY = h - pad - 38.1;
       if (footerText) {
         doc.setFontSize(8);
@@ -317,17 +292,17 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (footerData) {
         const p = doc.getImageProperties(footerData);
-        const maxDim = 1.5*25.4;
+        const maxDim = 1.5 * 25.4;
         const aspect = p.width/p.height;
-        let imgW=maxDim, imgH=maxDim;
-        if (aspect>1) imgH = maxDim/aspect;
-        else          imgW = maxDim*aspect;
+        let imgW = maxDim, imgH = maxDim;
+        if (aspect>1) imgH = maxDim/aspect; else imgW = maxDim*aspect;
         doc.addImage(footerData,'PNG', w-pad-imgW, h-pad-imgH, imgW, imgH);
       }
 
       zip.file(`${inv}.pdf`, doc.output('blob'));
     }
 
+    // bundle all into a zip and download
     const blob = await zip.generateAsync({ type:'blob' });
     saveAs(blob, 'invoices.zip');
   });
