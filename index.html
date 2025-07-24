@@ -97,7 +97,7 @@
             <div class="mb-2">
               <label class="form-label">Footer Text (optional)</label>
               <textarea id="footerText" class="form-control" rows="2"
-                placeholder="Enter footer text"></textarea>
+                placeholder="Enter footer text (use / for line breaks)"></textarea>
             </div>
             <div class="mb-2">
               <label class="form-label">Footer QR/Image (optional)</label>
@@ -137,6 +137,7 @@
       alertEl.innerHTML = '';
       try {
         const resp = await fetch('https://raw.githubusercontent.com/nasimulhasan/invoicegenerator/main/keys.json');
+        if (!resp.ok) throw new Error();
         const { validCodes } = await resp.json();
         if (validCodes.includes(code)) {
           document.getElementById('unlockPage').classList.add('hidden');
@@ -155,14 +156,8 @@
       const file = e.target.files[0]; if (!file) return;
       const arr = await new Response(file).arrayBuffer();
       const wb  = XLSX.read(arr, { type: 'array' });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      // shop header from A1
-      window.shopHeader = (sheet.A1?.v || '').split('/').map(s=>s.trim());
-      parsedRows = XLSX.utils.sheet_to_json(sheet, {
-  range: 1,      // skip the first row (A1 shop info)
-  defval: ''     // fill empty cells with ''
-});
-      // skip headers row2 automatically
+      parsedRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+
       const invoices = [...new Set(parsedRows.map(r => (r.Invoice||'').trim()))];
       const sel = document.getElementById('invoiceSelect');
       sel.innerHTML = '';
@@ -174,16 +169,16 @@
     let customFontName, customFontData;
     document.getElementById('fontInput').addEventListener('change', async e => {
       const f = e.target.files[0]; if (!f) return;
-      const dataUrl = await new Promise(res => {
+      const url = await new Promise(res => {
         const r = new FileReader(); r.onload = ()=>res(r.result); r.readAsDataURL(f);
       });
       customFontName = f.name;
-      customFontData = dataUrl.split(',')[1];
+      customFontData = url.split(',')[1];
     });
 
     // 4) Utility to read image
     const loadImage = file => new Promise(res => {
-      if(!file) return res(null);
+      if (!file) return res(null);
       const r = new FileReader(); r.onload = ()=>res(r.result); r.readAsDataURL(file);
     });
 
@@ -215,7 +210,7 @@
         if (!rows.length) continue;
 
         const doc = new jsPDF({ unit, format: [w, h] });
-        // apply custom font
+        // embed custom font
         if (customFontName) {
           doc.addFileToVFS(customFontName, customFontData);
           doc.addFont(customFontName, 'CustomFont', 'normal');
@@ -227,14 +222,13 @@
         const pad = 10;
         let y = pad;
 
-        // header shop info (right‑aligned)
-        if (window.shopHeader) {
-          doc.setFontSize(14);
-          window.shopHeader.forEach((line,i) => {
-            doc.text(line, w - pad, y + i*6, { align: 'right' });
-          });
-          y += window.shopHeader.length * 6 + 4;
-        }
+        // shop info (first two columns of first data row)
+        doc.setFontSize(14);
+        doc.text(rows[0]['Shop Name']||'', pad, y);
+        doc.setFontSize(10);
+        const addrLines = doc.splitTextToSize(rows[0]['Shop Address']||'', w - 2*pad);
+        doc.text(addrLines, pad, y + 6);
+        y += addrLines.length*6 + 4;
 
         // optional date
         if (showDate) {
@@ -244,7 +238,7 @@
           y += 8;
         }
 
-        // logo (auto‑resize to max 30mm height)
+        // logo
         if (headerData) {
           const props = doc.getImageProperties(headerData);
           const maxH  = 30;
@@ -254,31 +248,25 @@
           y += imgH + 6;
         }
 
-        // build table data
+        // build and draw table
         const body = rows.map(r => {
-          const qty   = parseInt(r.Quantity) || 0;
-          const price = parseFloat(r.Price) || 0;
-          const lineTotal = qty * price;
+          const qty   = parseInt(r.Quantity)||0;
+          const price = parseFloat(r.Price)||0;
+          const lineTotal = qty*price;
           return [
-            r.Items.replace(/\//g, '\n'),
-            qty,
-            price.toFixed(2),
-            lineTotal.toFixed(2)
+            (r.Items||'').replace(/\//g, '\n'),
+            qty, price.toFixed(2), lineTotal.toFixed(2)
           ];
         });
-
-        // draw table
         doc.autoTable({
-          head: [['Item', 'Qty', 'Price', 'Line Total']],
+          head: [['Item','Qty','Price','Line Total']],
           body,
           startY: y,
           theme: 'grid',
           styles: { lineWidth: 0.2 },
-          headStyles: { fillColor: null, textColor: 0, lineWidth: 0.8 },
-          tableLineColor: 0,
-          tableLineWidth: (row,data) => data.section === 'head' ? 0.8 : 0.2,
+          headStyles: { lineWidth: 0.8 },
           columnStyles: {
-            0: { cellWidth: w - pad*2 - 120 },
+            0: { cellWidth: w - 2*pad - 120 },
             1: { halign: 'right' },
             2: { halign: 'right' },
             3: { halign: 'right' }
@@ -286,36 +274,13 @@
         });
         y = doc.lastAutoTable.finalY + 4;
 
-        // subtotal, discount, total
-        const subTotal = body.reduce((sum, r)=>(sum + parseFloat(r[3])), 0);
-        const discount = parseFloat(rows[0].Discount) || 0;
-        const grandTotal = subTotal - discount;
-
+        // totals
+        const subTotal = body.reduce((s,row)=>s + parseFloat(row[3]), 0);
+        const discount = parseFloat(rows[0].Discount)||0;
+        const grand    = subTotal - discount;
         doc.setFontSize(10);
-        doc.text(`Subtotal:`, pad, y);               doc.text(subTotal.toFixed(2), w - pad, y, { align: 'right' }); y+=6;
-        doc.text(`Discount:`, pad, y);               doc.text(discount.toFixed(2), w - pad, y, { align: 'right' }); y+=6;
-        doc.text(`Grand Total:`, pad, y);            doc.text(grandTotal.toFixed(2), w - pad, y, { align: 'right' }); y+=10;
+        doc.text(`Subtotal:`, pad, y);           doc.text(subTotal.toFixed(2), w-pad, y, { align:'right' }); y+=6;
+        doc.text(`Discount:`, pad, y);           doc.text(discount.toFixed(2), w-pad, y, { align:'right' }); y+=6;
+        doc.text(`Grand Total:`, pad, y);        doc.text(grand.toFixed(2), w-pad, y, { align:'right' }); y+=10;
 
-        // footer text
-        if (footerText) {
-          doc.setFontSize(8);
-          doc.text(footerText, pad, h - pad - (footerData ? 30 : 0), { maxWidth: w - pad*2 });
-        }
-        // footer image flush bottom
-        if (footerData) {
-          const propsF = doc.getImageProperties(footerData);
-          const fh = w * (propsF.height / propsF.width);
-          doc.addImage(footerData, 'PNG', pad, h - pad - fh, w - pad*2, fh);
-        }
-
-        zip.file(`${inv}.pdf`, doc.output('blob'));
-      }
-
-      const blob = await zip.generateAsync({ type:'blob' });
-      saveAs(blob, 'invoices.zip');
-    });
-
-  });
-  </script>
-</body>
-</html>
+        /
