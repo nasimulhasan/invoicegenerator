@@ -242,39 +242,51 @@
             ];
           });
           doc.autoTable({
-            head: [['Item','Qty','Price','Line Total']],
-            body,
-            startY: y,
-            theme: 'plain',
-            headStyles: { fontStyle:'bold' },
-            styles: { cellPadding:2, halign:'left' },
-            columnStyles: {
-              1: { halign:'center' },
-              2: { halign:'center' },
-              3: { halign:'center' }
-            },
-            drawHeaderRow: row => {
-              // draw top line
-              const x1 = row.table.margin.left;
-              const x2 = doc.internal.pageSize.width - row.table.margin.right;
-              const yPos = row.y - row.height/2;
-              doc.setLineWidth(0.8).line(x1, yPos, x2, yPos);
-              doc.setLineWidth(0.8).line(x1, yPos + row.height, x2, yPos + row.height);
-            }
-          });
-          y = doc.lastAutoTable.finalY + 10;
+  head: [['Item','Qty','Price','Line Total']],
+  body: bodyRows,
+  foot: [
+    ['', '', 'Subtotal',   subTotal.toFixed(2)],
+    ['', '', 'Discount',   discount.toFixed(2)],
+    ['', '', 'Grand Total',grand.toFixed(2)]
+  ],
+  startY: y,
+  theme: 'plain',              // no borders by default
+  styles: {                    
+    lineWidth: 0,              // remove all cell borders
+    cellPadding: 2
+  },
+  headStyles: {
+    fillColor: null,
+    textColor: 0
+  },
+  footStyles: {
+    fillColor: null,
+    textColor: 0
+  },
+  didDrawCell: data => {
+    // draw horizontal lines manually:
+    const { table, section, row } = data;
+    if (section === 'head' && row.index === 0) {
+      // top line above header
+      doc.setLineWidth(0.8)
+         .line(table.margin.left, data.cell.y, table.margin.left + table.width, data.cell.y);
+      // bottom line below header
+      doc.setLineWidth(0.8)
+         .line(table.margin.left, data.cell.y + data.cell.height, table.margin.left + table.width, data.cell.y + data.cell.height);
+    }
+    if (section === 'foot' && row.index === 0) {
+      // line above foot (before Subtotal row)
+      doc.setLineWidth(0.8)
+         .line(table.margin.left, data.cell.y, table.margin.left + table.width, data.cell.y);
+    }
+  },
+  columnStyles: {
+    1: { halign: 'center' },
+    2: { halign: 'center' },
+    3: { halign: 'center' }
+  }
+});
 
-          // Totals
-          const subTotal = body.reduce((s,r)=>s + parseFloat(r[3]), 0);
-          const discount = parseFloat(rows[0].Discount)||0;
-          const grand    = subTotal - discount;
-          doc.setFontSize(10);
-          doc.text(`Subtotal:`, pad, y);
-          doc.text(subTotal.toFixed(2), w - pad, y, { align:'right' }); y += 6;
-          doc.text(`Discount:`, pad, y);
-          doc.text(discount.toFixed(2), w - pad, y, { align:'right' }); y += 6;
-          doc.text(`Grand Total:`, pad, y);
-          doc.text(grand.toFixed(2), w - pad, y, { align:'right' }); y += 10;
 
           // Footer text + QR
           const footerY = h - pad - 38.1;
