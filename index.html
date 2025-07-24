@@ -262,30 +262,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // draw table with no vertical borders
       doc.autoTable({
-        head: [['Item','Qty','Price','Line Total']],
-        body: bodyRows,
-        foot: footRows,
-        startY: y,
-        theme: 'grid',
-        drawCell: data => {
-          data.cell.styles.lineWidth = {
-            top:    data.cell.styles.lineWidth || 0.2,
-            bottom: data.cell.styles.lineWidth || 0.2,
-            left:   0,
-            right:  0
-          };
-        },
-        tableLineWidth: (row,data) =>
-          (data.section==='head' || data.section==='foot') ? 0.8 : 0.2,
-        headStyles: { fillColor:false, textColor:0 },
-        styles:    { lineColor:0, cellPadding:2 },
-        columnStyles: {
-          0: { cellWidth: w - 2*pad - 120 },
-          1: { halign:'right' },
-          2: { halign:'right' },
-          3: { halign:'right' }
-        }
-      });
+  head: [
+    ['Item','Qty','Price','Line Total']
+  ],
+  body: bodyRows,
+  foot: [
+    // a full‑width thin divider
+    [{ content: '', colSpan: 4, styles: { fillColor: null, lineWidth: 0.2 } }],
+    // the actual totals
+    ['Subtotal', '', '', subTotal.toFixed(2)],
+    ['Discount', '', '', discount.toFixed(2)],
+    [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, grand.toFixed(2)]
+  ],
+  startY: y,
+  theme: 'grid',
+  // remove all vertical lines:
+  drawCell: data => {
+    data.cell.styles.lineWidth = {
+      top:    data.cell.styles.lineWidth || 0.2,
+      bottom: data.cell.styles.lineWidth || 0.2,
+      left:   0,
+      right:  0
+    };
+  },
+  // thicker horizontal lines in head and between foot sections
+  tableLineWidth: (row, data) => {
+    if (data.section === 'head' || data.section === 'foot' && data.row.index === 0) {
+      return 0.8;
+    }
+    return 0.2;
+  },
+  headStyles: {
+    fillColor: null,
+    textColor: 0,
+    lineWidth: 0.8
+  },
+  footStyles: {
+    fillColor: null,
+    textColor: 0,
+    lineWidth: 0.8
+  },
+  styles: {
+    lineColor: 0,
+    lineWidth: 0.2,
+    cellPadding: 2
+  },
+  columnStyles: {
+    0: { cellWidth: w - 2*pad - 120 },
+    1: { halign: 'right' },
+    2: { halign: 'right' },
+    3: { halign: 'right' }
+  }
+});
+
 
       // FOOTER
       const footerY = h - pad - 38.1;
