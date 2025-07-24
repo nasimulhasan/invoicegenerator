@@ -123,9 +123,6 @@
 
   <!-- Main Logic -->
   <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const { jsPDF } = window.jspdf;
-
     // 1) Unlock
     document.getElementById('unlockBtn').addEventListener('click', async () => {
       const code = document.getElementById('unlockInput').value.trim();
@@ -149,7 +146,8 @@
     // 2) Parse Excel & Populate
     let parsedRows = [];
     document.getElementById('excelInput').addEventListener('change', async e => {
-      const file = e.target.files[0]; if (!file) return;
+      const file = e.target.files[0];
+      if (!file) return;
       const arr = await new Response(file).arrayBuffer();
       const wb  = XLSX.read(arr, { type: 'array' });
       parsedRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
@@ -161,74 +159,72 @@
       document.getElementById('invoiceSelection').classList.remove('hidden');
     });
 
-    // 4) Utility to read image
+    // 3) Utility to read image
     const loadImage = file => new Promise(res => {
       if (!file) return res(null);
-      const r = new FileReader(); r.onload = ()=>res(r.result); r.readAsDataURL(file);
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.readAsDataURL(file);
     });
 
-    // 5) Generate Invoices
+    // 4) Generate Invoices
     document.getElementById('generateBtn').addEventListener('click', async () => {
       const headerFile = document.getElementById('headerInput').files[0];
       const footerFile = document.getElementById('footerInput').files[0];
       const footerText = document.getElementById('footerText').value.trim();
-      const showDate = document.getElementById('showDate').checked;
+      const showDate   = document.getElementById('showDate').checked;
       if (!headerFile) return alert('Please upload a logo.');
       if (!parsedRows.length) return alert('Please upload and parse an Excel file.');
 
+      // load assets
       const headerData = await loadImage(headerFile);
       const footerData = await loadImage(footerFile);
 
       // determine page size
       let [w,h,unit] = document.getElementById('presetSize').value.split(',');
-      w = +w; h = +h; // unit remains 'mm'
+      w = +w; h = +h;
 
-      // group by invoice
-      const selected = Array.from(document.getElementById('invoiceSelect')
-                        .selectedOptions).map(o=>o.value);
-      const targets = selected.length ? selected
+      // pick invoices
+      const selected = Array.from(document.getElementById('invoiceSelect').selectedOptions)
+                            .map(o => o.value);
+      const targets = selected.length
+        ? selected
         : [...new Set(parsedRows.map(r=>r.Invoice.trim()))];
 
       const zip = new JSZip();
+
       for (const inv of targets) {
         const rows = parsedRows.filter(r=>r.Invoice.trim()===inv);
         if (!rows.length) continue;
 
         const doc = new jsPDF({ unit, format: [w, h] });
-        // embed custom font
         doc.setFont('helvetica');
-
 
         const pad = 10;
         let y = pad;
 
-        // HEADER: logo left, shop details right, same Y
-let headerY = pad;
+        // HEADER: logo + shop details side by side
+        let logoH = 0;
+        if (headerData) {
+          const props = doc.getImageProperties(headerData);
+          const maxH  = 30;
+          logoH = Math.min(maxH, w * (props.height/props.width));
+          const logoW = logoH * (props.width/props.height);
+          doc.addImage(headerData, 'PNG', pad, y, logoW, logoH);
+        }
 
-// draw logo if present
-let logoH = 0;
-if (headerData) {
-  const props = doc.getImageProperties(headerData);
-  const maxH  = 30; // mm
-  logoH = Math.min(maxH, w * (props.height / props.width));
-  const logoW = logoH * (props.width / props.height);
-  doc.addImage(headerData, 'PNG', pad, headerY, logoW, logoH);
-}
+        const shopName    = rows[0]['Shop Name']    || '';
+        const shopAddress = rows[0]['Shop Address'] || '';
+        doc.setFontSize(14);
+        doc.text(shopName, w - pad, y+4, { align:'right' });
+        doc.setFontSize(10);
+        const addrLines = doc.splitTextToSize(
+          shopAddress,
+          w - 2*pad - (logoH ? (logoH * (doc.getImageProperties(headerData).width/ doc.getImageProperties(headerData).height) + 10) : 0)
+        );
+        doc.text(addrLines, w - pad, y+10, { align:'right' });
 
-// draw shop details on same baseline, right‑aligned
-const shopName    = rows[0]['Shop Name']    || '';
-const shopAddress = rows[0]['Shop Address'] || '';
-doc.setFontSize(14);
-doc.text(shopName, w - pad, headerY + 4, { align: 'right' });
-doc.setFontSize(10);
-// split address lines, draw starting slightly below the shop name
-const addrLines = doc.splitTextToSize(shopAddress, w - 2*pad - (logoH ? (logoH * (doc.getImageProperties(headerData).width / doc.getImageProperties(headerData).height) + 10) : 0));
-doc.text(addrLines, w - pad, headerY + 10, { align: 'right' });
-
-// advance Y past whichever is taller: logo or shop‑header block
-const shopBlockH = 10 + addrLines.length * 6;
-y = headerY + Math.max(logoH, shopBlockH) + 6;
-
+        y += Math.max(logoH, 10 + addrLines.length*6) + 6;
 
         // optional date
         if (showDate) {
@@ -238,90 +234,74 @@ y = headerY + Math.max(logoH, shopBlockH) + 6;
           y += 8;
         }
 
-        // build and draw table
+        // table
         const body = rows.map(r => {
           const qty   = parseInt(r.Quantity)||0;
           const price = parseFloat(r.Price)||0;
-          const lineTotal = qty*price;
           return [
-            (r.Items||'').replace(/\//g, '\n'),
-            qty, price.toFixed(2), lineTotal.toFixed(2)
+            (r.Items||'').replace(/\//g,'\n'),
+            qty,
+            price.toFixed(2),
+            (qty*price).toFixed(2)
           ];
         });
 
-       doc.autoTable({ 
-  head: [['Item','Qty','Price','Line Total']],
-  body,
-  startY: y,
-  /* … your existing table options … */
-});
+        doc.autoTable({
+          head: [['Item','Qty','Price','Line Total']],
+          body,
+          startY: y,
+          theme: 'grid',
+          tableLineColor: 0,
+          tableLineWidth: (row,data) => data.section==='head'?0.8:0.2,
+          headStyles: { fillColor:false, textColor:0, lineWidth:0.8 },
+          styles:    { lineColor:0, lineWidth:0.2, cellPadding:2 },
+          columnStyles: {
+            0: { cellWidth: w - 2*pad - 120 },
+            1: { halign:'right' },
+            2: { halign:'right' },
+            3: { halign:'right' }
+          },
+          drawCell: data => {
+            const lw = data.cell.styles.lineWidth;
+            data.cell.styles.lineWidth = {
+              top:    lw.top    || lw,
+              bottom: lw.bottom || lw,
+              left:   0,
+              right:  0
+            };
+          }
+        });
 
-// 1) compute where the table ended
-const tableEndY = doc.lastAutoTable.finalY;
-// 2) give yourself extra breathing room (10pt)
-y = tableEndY + 10;
-
-// now draw totals at the new y
-const subTotal = body.reduce((s,row)=>s + parseFloat(row[3]), 0);
-const discount = parseFloat(rows[0].Discount)||0;
-const grand    = subTotal - discount;
-
-doc.setFontSize(10);
-doc.text(`Subtotal:`, pad, y);
-doc.text(subTotal.toFixed(2), w - pad, y, { align:'right' });
-y += 6;
-
-doc.text(`Discount:`, pad, y);
-doc.text(discount.toFixed(2), w - pad, y, { align:'right' });
-y += 6;
-
-doc.text(`Grand Total:`, pad, y);
-doc.text(grand.toFixed(2), w - pad, y, { align:'right' });
-y += 10;
-
-
+        // advance Y past table
+        y = doc.lastAutoTable.finalY + 10;
 
         // totals
-        const subTotal = body.reduce((s,row)=>s + parseFloat(row[3]), 0);
+        const subTotal = body.reduce((s,r)=>s + parseFloat(r[3]), 0);
         const discount = parseFloat(rows[0].Discount)||0;
         const grand    = subTotal - discount;
         doc.setFontSize(10);
-        doc.text(`Subtotal:`, pad, y);           doc.text(subTotal.toFixed(2), w-pad, y, { align:'right' }); y+=6;
-        doc.text(`Discount:`, pad, y);           doc.text(discount.toFixed(2), w-pad, y, { align:'right' }); y+=6;
-        doc.text(`Grand Total:`, pad, y);        doc.text(grand.toFixed(2), w-pad, y, { align:'right' }); y+=10;
+        doc.text(`Subtotal:`,      pad,     y);
+        doc.text(subTotal.toFixed(2), w-pad, y, { align:'right' }); y += 6;
+        doc.text(`Discount:`,      pad,     y);
+        doc.text(discount.toFixed(2), w-pad, y, { align:'right' }); y += 6;
+        doc.text(`Grand Total:`,   pad,     y);
+        doc.text(grand.toFixed(2),  w-pad, y, { align:'right' }); y += 10;
 
-// FOOTER: left‑aligned text, right‑aligned QR
-
-const footerY = h - pad - 38.1;  // reserve 1.5" slot
-
-// 1) Footer text on left half
-if (footerText) {
-  doc.setFontSize(8);
-  doc.text(footerText, pad, footerY + 5, {
-    maxWidth: (w - 2*pad) / 2
-  });
-}
-
-// 2) Footer QR/image on right
-if (footerData) {
-  const propsF = doc.getImageProperties(footerData);
-  const maxDim = 1.5 * 25.4;
-  const aspect = propsF.width / propsF.height;
-  let imgW = maxDim, imgH = maxDim;
-  if (aspect > 1) imgH = maxDim / aspect;
-  else imgW = maxDim * aspect;
-
-  doc.addImage(
-    footerData,
-    'PNG',
-    w - pad - imgW,        // X = right‑pad
-    h - pad - imgH,        // Y = bottom‑pad
-    imgW,
-    imgH
-  );
-}
-
-
+        // FOOTER: left text / right QR
+        const footerY = h - pad - 38.1;  // 1.5"
+        if (footerText) {
+          doc.setFontSize(8);
+          doc.text(footerText, pad, footerY+5, { maxWidth:(w-2*pad)/2 });
+        }
+        if (footerData) {
+          const p = doc.getImageProperties(footerData);
+          const maxDim = 1.5*25.4;
+          const aspect = p.width/p.height;
+          let imgW=maxDim, imgH=maxDim;
+          if (aspect>1) imgH = maxDim/aspect;
+          else          imgW = maxDim*aspect;
+          doc.addImage(footerData,'PNG', w-pad-imgW, h-pad-imgH, imgW, imgH);
+        }
 
         zip.file(`${inv}.pdf`, doc.output('blob'));
       }
@@ -329,8 +309,6 @@ if (footerData) {
       const blob = await zip.generateAsync({ type:'blob' });
       saveAs(blob, 'invoices.zip');
     });
-
-  });
   </script>
 </body>
 </html>
