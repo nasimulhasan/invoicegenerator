@@ -289,11 +289,34 @@
           doc.text(footerText, pad, h - pad - (footerData?30:0), { maxWidth: w-2*pad });
         }
         // footer image
-        if (footerData) {
-          const p = doc.getImageProperties(footerData);
-          const fh = w * (p.height/p.width);
-          doc.addImage(footerData, 'PNG', pad, h - pad - fh, w-2*pad, fh);
-        }
+        // footer image (max 1.5″ × 1.5″)
+if (footerData) {
+  const props = doc.getImageProperties(footerData);
+  const maxDim = 1.5 * 25.4; // 1.5 inches in mm
+
+  // preserve aspect ratio
+  const aspect = props.width / props.height;
+  let imgW = maxDim;
+  let imgH = maxDim;
+  if (aspect > 1) {
+    // landscape
+    imgH = maxDim / aspect;
+  } else {
+    // portrait or square
+    imgW = maxDim * aspect;
+  }
+
+  // draw at bottom‑left with padding
+  doc.addImage(
+    footerData,
+    'PNG',
+    pad,
+    h - pad - imgH,
+    imgW,
+    imgH
+  );
+}
+
 
         zip.file(`${inv}.pdf`, doc.output('blob'));
       }
