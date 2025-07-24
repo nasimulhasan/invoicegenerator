@@ -32,7 +32,6 @@
           <input type="text" id="unlockInput" class="form-control mb-3" placeholder="Enter unlock code">
           <button id="unlockBtn" class="btn btn-primary w-100 mb-3">Unlock</button>
           <div id="unlockAlert"></div>
-
           <div class="mt-3 d-flex justify-content-center gap-3">
             <a href="YOUTUBE_URL" target="_blank" class="d-flex align-items-center text-decoration-none">
               <i class="bi bi-youtube fs-4 text-danger"></i><span class="ms-2">See instructions</span>
@@ -41,18 +40,14 @@
               <i class="bi bi-whatsapp fs-4 text-success"></i><span class="ms-2">Contact us</span>
             </a>
           </div>
-
           <div class="accordion mt-4" id="unlockInfoAccordion">
             <div class="accordion-item">
               <h2 class="accordion-header" id="headingUnlockInfo">
-                <button class="accordion-button collapsed" type="button"
-                  data-bs-toggle="collapse" data-bs-target="#collapseUnlockInfo"
-                  aria-expanded="false" aria-controls="collapseUnlockInfo">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseUnlockInfo" aria-expanded="false" aria-controls="collapseUnlockInfo">
                   How to get Unlock Code?
                 </button>
               </h2>
-              <div id="collapseUnlockInfo" class="accordion-collapse collapse"
-                   aria-labelledby="headingUnlockInfo" data-bs-parent="#unlockInfoAccordion">
+              <div id="collapseUnlockInfo" class="accordion-collapse collapse" aria-labelledby="headingUnlockInfo" data-bs-parent="#unlockInfoAccordion">
                 <div class="accordion-body text-start">
                   এক্টিভেশন কোড পেতে ০১৬১০৯২৬৯২৭ নম্বরে বিকাশের মাধ্যমে ১৯৯ টাকা সেন্ড মানি করুন।
                 </div>
@@ -67,8 +62,6 @@
         <div class="card shadow-sm mb-4">
           <div class="card-body p-4">
             <h1 class="card-title text-center mb-4">Invoice Generator</h1>
-
-            <!-- Paper Size -->
             <div class="mb-3 row">
               <label class="col-sm-4 col-form-label">Paper Size</label>
               <div class="col-sm-8">
@@ -78,22 +71,17 @@
                 </select>
               </div>
             </div>
-
-            <!-- Optional Date -->
             <div class="form-check mb-3">
               <input class="form-check-input" type="checkbox" id="showDate" checked>
               <label class="form-check-label" for="showDate">Print Invoice Date</label>
             </div>
-
-            <!-- Inputs -->
             <div class="mb-2">
               <label class="form-label">Upload Logo</label>
               <input type="file" id="headerInput" class="form-control" accept="image/*">
             </div>
             <div class="mb-2">
               <label class="form-label">Footer Text (optional)</label>
-              <textarea id="footerText" class="form-control" rows="2"
-                placeholder="Enter footer text (use / for line breaks)"></textarea>
+              <textarea id="footerText" class="form-control" rows="2" placeholder="Enter footer text (use / for line breaks)"></textarea>
             </div>
             <div class="mb-2">
               <label class="form-label">Footer QR/Image (optional)</label>
@@ -107,9 +95,7 @@
               <label class="form-label">Select Invoices</label>
               <select id="invoiceSelect" class="form-select" multiple size="8"></select>
             </div>
-            <button type="button" id="generateBtn" class="btn btn-primary w-100 mt-2">
-              Generate Invoices
-            </button>
+            <button type="button" id="generateBtn" class="btn btn-primary w-100 mt-2">Generate Invoices</button>
             <div id="alertPlaceholder" class="mt-3"></div>
           </div>
         </div>
@@ -129,12 +115,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const generateBtn = document.getElementById('generateBtn');
   const alertPlaceholder = document.getElementById('alertPlaceholder');
 
-  // Utility to show alerts
   const showAlert = (message, type = 'danger') => {
     alertPlaceholder.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
   };
 
-  // Utility to read an image file as a Data URL
   const loadImage = file => new Promise((resolve, reject) => {
     if (!file) return resolve(null);
     const reader = new FileReader();
@@ -143,7 +127,6 @@ document.addEventListener('DOMContentLoaded', () => {
     reader.readAsDataURL(file);
   });
 
-  // 1) Unlock Functionality
   unlockBtn.addEventListener('click', async () => {
     const code = document.getElementById('unlockInput').value.trim();
     const alertEl = document.getElementById('unlockAlert');
@@ -167,29 +150,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 2) Excel File Parsing
   document.getElementById('excelInput').addEventListener('change', async e => {
     const file = e.target.files[0];
     const invoiceSelectionDiv = document.getElementById('invoiceSelection');
     const invoiceSelect = document.getElementById('invoiceSelect');
-    
     invoiceSelectionDiv.classList.add('hidden');
     invoiceSelect.innerHTML = '';
     alertPlaceholder.innerHTML = '';
-
     if (!file) return;
-
     try {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: 'array' });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
-
       window.parsedRows = jsonRows;
-      
       const invoiceNumbers = [...new Set(jsonRows.map(r => (r.Invoice || '').toString().trim()).filter(Boolean))];
-
       if (invoiceNumbers.length > 0) {
         invoiceNumbers.forEach(inv => {
           const option = new Option(inv, inv);
@@ -202,58 +178,44 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (err) {
       console.error("Excel Parsing Error:", err);
-      showAlert('There was an error reading the Excel file. Please ensure it is a valid .xls or .xlsx file.');
+      showAlert('There was an error reading the Excel file.', 'danger');
       window.parsedRows = [];
     }
   });
 
-  // 3) Generate Invoices Button Click
   generateBtn.addEventListener('click', async () => {
     alertPlaceholder.innerHTML = ''; 
     const { parsedRows } = window;
-    
     if (!parsedRows || parsedRows.length === 0) {
-      showAlert('Please upload a valid Excel file first.', 'warning');
-      return;
+      return showAlert('Please upload a valid Excel file first.', 'warning');
     }
-
-    const headerFile = document.getElementById('headerInput').files[0];
-    if (!headerFile) {
-      showAlert('Please upload a logo image for the header.', 'warning');
-      return;
+    if (!document.getElementById('headerInput').files[0]) {
+      return showAlert('Please upload a logo image for the header.', 'warning');
     }
 
     generateBtn.disabled = true;
-    generateBtn.innerHTML = `
-      <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-      Generating...`;
+    generateBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...`;
 
     try {
+      const headerFile = document.getElementById('headerInput').files[0];
       const footerFile = document.getElementById('footerInput').files[0];
       const footerText = document.getElementById('footerText').value.trim();
       const showDate = document.getElementById('showDate').checked;
-
       const [headerData, footerData] = await Promise.all([loadImage(headerFile), loadImage(footerFile)]);
-
       let [w, h, unit] = document.getElementById('presetSize').value.split(',');
       w = +w; h = +h;
-
       const selectedOptions = Array.from(document.getElementById('invoiceSelect').selectedOptions).map(o => o.value);
       const allInvoices = [...new Set(parsedRows.map(r => r.Invoice.toString().trim()))];
       const targetInvoices = selectedOptions.length ? selectedOptions : allInvoices;
-
       const zip = new JSZip();
 
       for (const inv of targetInvoices) {
+        const doc = new jsPDF({ unit, format: [w, h] });
         const rows = parsedRows.filter(r => r.Invoice.toString().trim() === inv);
         if (rows.length === 0) continue;
-
-        const doc = new jsPDF({ unit, format: [w, h] });
         doc.setFont('helvetica');
         const pad = 10;
         let y = pad;
-
-        // Header
         let logoH = 0;
         if (headerData) {
           const p = doc.getImageProperties(headerData);
@@ -263,23 +225,17 @@ document.addEventListener('DOMContentLoaded', () => {
           const logoW = logoH * logoAspectRatio;
           doc.addImage(headerData, 'PNG', pad, y, logoW, logoH);
         }
-        
         const shopName = rows[0]['Shop Name'] || '';
         const shopAddress = rows[0]['Shop Address'] || '';
         doc.setFontSize(14).text(shopName, w - pad, y + 4, { align: 'right' });
         doc.setFontSize(10);
         const addrLines = doc.splitTextToSize(shopAddress, w / 2 - pad);
         doc.text(addrLines, w - pad, y + 10, { align: 'right' });
-        
         y += Math.max(logoH, 10 + addrLines.length * 5) + 6;
-
-        // Date
         if (showDate) {
           doc.setFontSize(10).text(`Date: ${new Date().toLocaleDateString()}`, pad, y);
           y += 8;
         }
-
-        // Table Data
         const body = rows.map(r => {
           const qty = parseInt(r.Quantity) || 0;
           const price = parseFloat(r.Price) || 0;
@@ -289,7 +245,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const discount = parseFloat(rows[0].Discount) || 0;
         const grandTotal = subTotal - discount;
 
-        // Table Generation
+        // ========================= ROBUST FIX IS HERE =========================
+        // This helper function checks if all coordinates are valid numbers before drawing.
+        // This prevents the "Invalid arguments" error.
+        const drawLine = (x1, y1, x2, y2) => {
+          if ([x1, y1, x2, y2].every(val => typeof val === 'number' && isFinite(val))) {
+            doc.line(x1, y1, x2, y2);
+          } else {
+            console.warn("Skipped drawing a line due to invalid coordinates:", {x1, y1, x2, y2});
+          }
+        };
+
         doc.autoTable({
           head: [['Item', 'Qty', 'Price', 'Line Total']],
           body,
@@ -305,26 +271,22 @@ document.addEventListener('DOMContentLoaded', () => {
           footStyles: { textColor: 0, fillColor: null, fontStyle: 'bold' },
           columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
           didDrawCell: data => {
-            // ========================= FIX IS HERE =========================
-            // Use `data.table.x` instead of `table.margin.left` for reliability.
-            const table = data.table;
-            if (data.section === 'head' && data.row.index === 0) {
+            const { table, section, row, cell } = data;
+            if (section === 'head' && row.index === 0) {
               doc.setLineWidth(0.4);
-              doc.line(table.x, data.cell.y, table.x + table.width, data.cell.y);
-              doc.line(table.x, data.cell.y + data.cell.height, table.x + table.width, data.cell.y + data.cell.height);
+              drawLine(table.x, cell.y, table.x + table.width, cell.y); // Top line of header
+              drawLine(table.x, cell.y + cell.height, table.x + table.width, cell.y + cell.height); // Bottom line of header
             }
-            if (data.section === 'foot' && data.row.index === 0) {
+            if (section === 'foot' && row.index === 0) {
               doc.setLineWidth(0.4);
-              doc.line(table.x, data.cell.y, table.x + table.width, data.cell.y);
+              drawLine(table.x, cell.y, table.x + table.width, cell.y); // Line above footer
             }
-            // ======================= END OF FIX ==========================
           }
         });
+        // ======================= END OF FIX ==========================
 
-        // Footer
         const finalY = doc.autoTable.previous.finalY;
         const footerStartY = Math.max(finalY + 15, h - pad - 30);
-
         if (footerText) {
           doc.setFontSize(8);
           const textLines = doc.splitTextToSize(footerText.replace(/\//g, '\n'), (w - 2 * pad) / 2);
@@ -338,11 +300,9 @@ document.addEventListener('DOMContentLoaded', () => {
           if (aspect > 1) { imgH = maxDim / aspect; } else { imgW = maxDim * aspect; }
           doc.addImage(footerData, 'PNG', w - pad - imgW, h - pad - imgH, imgW, imgH);
         }
-        
         zip.file(`${inv}.pdf`, doc.output('blob'));
       }
 
-      // Finalize ZIP
       if (Object.keys(zip.files).length > 0) {
         const blob = await zip.generateAsync({ type: 'blob' });
         saveAs(blob, 'invoices.zip');
@@ -350,10 +310,9 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         showAlert('No invoices were selected or found to generate.', 'warning');
       }
-
     } catch (err) {
       console.error("PDF Generation Error:", err);
-      showAlert(`An error occurred during PDF generation: ${err.message}`);
+      showAlert(`An error occurred during PDF generation: ${err.message}`, 'danger');
     } finally {
       generateBtn.disabled = false;
       generateBtn.innerText = 'Generate Invoices';
@@ -363,4 +322,4 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 </body>
-</html>
+</html>```
