@@ -283,4 +283,26 @@
         doc.text(`Discount:`, pad, y);           doc.text(discount.toFixed(2), w-pad, y, { align:'right' }); y+=6;
         doc.text(`Grand Total:`, pad, y);        doc.text(grand.toFixed(2), w-pad, y, { align:'right' }); y+=10;
 
-        /
+        // footer text
+        if (footerText) {
+          doc.setFontSize(8);
+          doc.text(footerText, pad, h - pad - (footerData?30:0), { maxWidth: w-2*pad });
+        }
+        // footer image
+        if (footerData) {
+          const p = doc.getImageProperties(footerData);
+          const fh = w * (p.height/p.width);
+          doc.addImage(footerData, 'PNG', pad, h - pad - fh, w-2*pad, fh);
+        }
+
+        zip.file(`${inv}.pdf`, doc.output('blob'));
+      }
+
+      const blob = await zip.generateAsync({ type:'blob' });
+      saveAs(blob, 'invoices.zip');
+    });
+
+  });
+  </script>
+</body>
+</html>
