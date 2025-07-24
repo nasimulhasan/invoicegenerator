@@ -293,39 +293,37 @@ y = headerY + Math.max(logoH, shopBlockH) + 6;
         doc.text(`Discount:`, pad, y);           doc.text(discount.toFixed(2), w-pad, y, { align:'right' }); y+=6;
         doc.text(`Grand Total:`, pad, y);        doc.text(grand.toFixed(2), w-pad, y, { align:'right' }); y+=10;
 
-        // footer text
-        if (footerText) {
-          doc.setFontSize(8);
-          doc.text(footerText, pad, h - pad - (footerData?30:0), { maxWidth: w-2*pad });
-        }
-        // footer image
-        // footer image (max 1.5″ × 1.5″)
+// FOOTER: left‑aligned text, right‑aligned QR
+
+const footerY = h - pad - 38.1;  // reserve 1.5" slot
+
+// 1) Footer text on left half
+if (footerText) {
+  doc.setFontSize(8);
+  doc.text(footerText, pad, footerY + 5, {
+    maxWidth: (w - 2*pad) / 2
+  });
+}
+
+// 2) Footer QR/image on right
 if (footerData) {
-  const props = doc.getImageProperties(footerData);
-  const maxDim = 1.5 * 25.4; // 1.5 inches in mm
+  const propsF = doc.getImageProperties(footerData);
+  const maxDim = 1.5 * 25.4;
+  const aspect = propsF.width / propsF.height;
+  let imgW = maxDim, imgH = maxDim;
+  if (aspect > 1) imgH = maxDim / aspect;
+  else imgW = maxDim * aspect;
 
-  // preserve aspect ratio
-  const aspect = props.width / props.height;
-  let imgW = maxDim;
-  let imgH = maxDim;
-  if (aspect > 1) {
-    // landscape
-    imgH = maxDim / aspect;
-  } else {
-    // portrait or square
-    imgW = maxDim * aspect;
-  }
-
-  // draw at bottom‑left with padding
   doc.addImage(
     footerData,
     'PNG',
-    pad,
-    h - pad - imgH,
+    w - pad - imgW,        // X = right‑pad
+    h - pad - imgH,        // Y = bottom‑pad
     imgW,
     imgH
   );
 }
+
 
 
         zip.file(`${inv}.pdf`, doc.output('blob'));
