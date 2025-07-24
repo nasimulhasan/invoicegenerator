@@ -87,10 +87,6 @@
 
             <!-- Inputs -->
             <div class="mb-2">
-              <label class="form-label">Upload Font (.ttf/.otf)</label>
-              <input type="file" id="fontInput" class="form-control" accept=".ttf,.otf">
-            </div>
-            <div class="mb-2">
               <label class="form-label">Upload Logo</label>
               <input type="file" id="headerInput" class="form-control" accept="image/*">
             </div>
@@ -163,17 +159,6 @@
       sel.innerHTML = '';
       invoices.forEach(inv => sel.append(new Option(inv, inv)));
       document.getElementById('invoiceSelection').classList.remove('hidden');
-    });
-
-    // 3) Load custom font
-    let customFontName, customFontData;
-    document.getElementById('fontInput').addEventListener('change', async e => {
-      const f = e.target.files[0]; if (!f) return;
-      const url = await new Promise(res => {
-        const r = new FileReader(); r.onload = ()=>res(r.result); r.readAsDataURL(f);
-      });
-      customFontName = f.name;
-      customFontData = url.split(',')[1];
     });
 
     // 4) Utility to read image
