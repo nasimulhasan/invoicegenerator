@@ -236,54 +236,52 @@ document.addEventListener('DOMContentLoaded', () => {
           doc.setFontSize(10).text(`Date: ${new Date().toLocaleDateString()}`, pad, y);
           y += 8;
         }
+
+        // Build table body from items
         const body = rows.map(r => {
           const qty = parseInt(r.Quantity) || 0;
           const price = parseFloat(r.Price) || 0;
           return [ (r.Items || '').replace(/\//g, '\n'), qty.toString(), price.toFixed(2), (qty * price).toFixed(2) ];
         });
+        
+        // Calculate totals
         const subTotal = body.reduce((sum, row) => sum + parseFloat(row[3]), 0);
         const discount = parseFloat(rows[0].Discount) || 0;
         const grandTotal = subTotal - discount;
 
-        // ========================= ROBUST FIX IS HERE =========================
-        // This helper function checks if all coordinates are valid numbers before drawing.
-        // This prevents the "Invalid arguments" error.
-        const drawLine = (x1, y1, x2, y2) => {
-          if ([x1, y1, x2, y2].every(val => typeof val === 'number' && isFinite(val))) {
-            doc.line(x1, y1, x2, y2);
-          } else {
-            console.warn("Skipped drawing a line due to invalid coordinates:", {x1, y1, x2, y2});
-          }
-        };
+        // ======================= MODIFICATION START =========================
+        // Add the summary rows directly to the table body
+        body.push(
+          ['', '', 'Subtotal', subTotal.toFixed(2)],
+          ['', '', 'Discount', discount.toFixed(2)],
+          ['', '', 'Grand Total', grandTotal.toFixed(2)]
+        );
 
         doc.autoTable({
           head: [['Item', 'Qty', 'Price', 'Line Total']],
-          body,
-          foot: [
-            ['', '', 'Subtotal', subTotal.toFixed(2)],
-            ['', '', 'Discount', discount.toFixed(2)],
-            ['', '', 'Grand Total', grandTotal.toFixed(2)]
-          ],
+          body: body, // Use the modified body with summary rows
+          // The 'foot' section is no longer needed
           startY: y,
-          theme: 'plain',
-          styles: { lineWidth: 0, cellPadding: 2, fontSize: 10 },
-          headStyles: { textColor: 0, fillColor: null, fontStyle: 'bold' },
-          footStyles: { textColor: 0, fillColor: null, fontStyle: 'bold' },
-          columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
-          didDrawCell: data => {
-            const { table, section, row, cell } = data;
-            if (section === 'head' && row.index === 0) {
-              doc.setLineWidth(0.4);
-              drawLine(table.x, cell.y, table.x + table.width, cell.y); // Top line of header
-              drawLine(table.x, cell.y + cell.height, table.x + table.width, cell.y + cell.height); // Bottom line of header
-            }
-            if (section === 'foot' && row.index === 0) {
-              doc.setLineWidth(0.4);
-              drawLine(table.x, cell.y, table.x + table.width, cell.y); // Line above footer
+          theme: 'grid', // CHANGED: Use the 'grid' theme for visible borders
+          styles: { cellPadding: 2, fontSize: 10 },
+          headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold' },
+          columnStyles: { 
+            0: { cellWidth: 'auto' }, // Item column
+            1: { halign: 'center' }, // Qty column
+            2: { halign: 'right' },  // Price column
+            3: { halign: 'right' }   // Line Total column
+          },
+          // NEW: This hook styles the summary rows to be bold
+          didParseCell: (data) => {
+            const isSummaryRow = data.row.raw[2] === 'Subtotal' || 
+                                 data.row.raw[2] === 'Discount' ||
+                                 data.row.raw[2] === 'Grand Total';
+            if (data.section === 'body' && isSummaryRow) {
+              data.cell.styles.fontStyle = 'bold';
             }
           }
         });
-        // ======================= END OF FIX ==========================
+        // ======================== MODIFICATION END ==========================
 
         const finalY = doc.autoTable.previous.finalY;
         const footerStartY = Math.max(finalY + 15, h - pad - 30);
@@ -322,4 +320,4 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 </body>
-</html>```
+</html>
