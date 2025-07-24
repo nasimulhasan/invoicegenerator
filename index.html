@@ -123,16 +123,12 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  // CORRECT INITIALIZATION: Get jsPDF class from the window object.
-  // The jspdf-autotable plugin will automatically attach itself to this class.
   const { jsPDF } = window.jspdf;
 
   const unlockBtn = document.getElementById('unlockBtn');
   const generateBtn = document.getElementById('generateBtn');
   const alertPlaceholder = document.getElementById('alertPlaceholder');
 
-  // --- Utility Functions ---
-  
   // Utility to show alerts
   const showAlert = (message, type = 'danger') => {
     alertPlaceholder.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
@@ -146,8 +142,6 @@ document.addEventListener('DOMContentLoaded', () => {
     reader.onerror = error => reject(error);
     reader.readAsDataURL(file);
   });
-
-  // --- Event Listeners ---
 
   // 1) Unlock Functionality
   unlockBtn.addEventListener('click', async () => {
@@ -192,7 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const worksheet = workbook.Sheets[sheetName];
       const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
-      window.parsedRows = jsonRows; // Store rows globally for access by generator
+      window.parsedRows = jsonRows;
       
       const invoiceNumbers = [...new Set(jsonRows.map(r => (r.Invoice || '').toString().trim()).filter(Boolean))];
 
@@ -215,8 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 3) Generate Invoices Button Click
   generateBtn.addEventListener('click', async () => {
-    // --- Initial Validation ---
-    alertPlaceholder.innerHTML = ''; // Clear previous alerts
+    alertPlaceholder.innerHTML = ''; 
     const { parsedRows } = window;
     
     if (!parsedRows || parsedRows.length === 0) {
@@ -230,7 +223,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // --- Provide User Feedback ---
     generateBtn.disabled = true;
     generateBtn.innerHTML = `
       <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -252,7 +244,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const zip = new JSZip();
 
-      // --- Loop and Generate Each PDF ---
       for (const inv of targetInvoices) {
         const rows = parsedRows.filter(r => r.Invoice.toString().trim() === inv);
         if (rows.length === 0) continue;
@@ -262,11 +253,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const pad = 10;
         let y = pad;
 
-        // HEADER: Logo and Shop Details
+        // Header
         let logoH = 0;
         if (headerData) {
           const p = doc.getImageProperties(headerData);
-          const maxH = 30; // Max logo height in mm
+          const maxH = 30;
           const logoAspectRatio = p.width / p.height;
           logoH = Math.min(maxH, w * (1 / logoAspectRatio));
           const logoW = logoH * logoAspectRatio;
@@ -282,29 +273,23 @@ document.addEventListener('DOMContentLoaded', () => {
         
         y += Math.max(logoH, 10 + addrLines.length * 5) + 6;
 
-        // Optional Invoice Date
+        // Date
         if (showDate) {
           doc.setFontSize(10).text(`Date: ${new Date().toLocaleDateString()}`, pad, y);
           y += 8;
         }
 
-        // Build Table Data
+        // Table Data
         const body = rows.map(r => {
           const qty = parseInt(r.Quantity) || 0;
           const price = parseFloat(r.Price) || 0;
-          return [
-            (r.Items || '').replace(/\//g, '\n'),
-            qty.toString(),
-            price.toFixed(2),
-            (qty * price).toFixed(2)
-          ];
+          return [ (r.Items || '').replace(/\//g, '\n'), qty.toString(), price.toFixed(2), (qty * price).toFixed(2) ];
         });
         const subTotal = body.reduce((sum, row) => sum + parseFloat(row[3]), 0);
         const discount = parseFloat(rows[0].Discount) || 0;
         const grandTotal = subTotal - discount;
 
-        // TABLE GENERATION (this is the key part)
-        // The autoTable method is correctly called on the doc instance.
+        // Table Generation
         doc.autoTable({
           head: [['Item', 'Qty', 'Price', 'Line Total']],
           body,
@@ -320,21 +305,25 @@ document.addEventListener('DOMContentLoaded', () => {
           footStyles: { textColor: 0, fillColor: null, fontStyle: 'bold' },
           columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
           didDrawCell: data => {
+            // ========================= FIX IS HERE =========================
+            // Use `data.table.x` instead of `table.margin.left` for reliability.
+            const table = data.table;
             if (data.section === 'head' && data.row.index === 0) {
               doc.setLineWidth(0.4);
-              doc.line(data.table.margin.left, data.cell.y, data.table.width + data.table.margin.left, data.cell.y);
-              doc.line(data.table.margin.left, data.cell.y + data.cell.height, data.table.width + data.table.margin.left, data.cell.y + data.cell.height);
+              doc.line(table.x, data.cell.y, table.x + table.width, data.cell.y);
+              doc.line(table.x, data.cell.y + data.cell.height, table.x + table.width, data.cell.y + data.cell.height);
             }
             if (data.section === 'foot' && data.row.index === 0) {
               doc.setLineWidth(0.4);
-              doc.line(data.table.margin.left, data.cell.y, data.table.width + data.table.margin.left, data.cell.y);
+              doc.line(table.x, data.cell.y, table.x + table.width, data.cell.y);
             }
+            // ======================= END OF FIX ==========================
           }
         });
 
-        // REFINED FOOTER: Position footer dynamically below the table
+        // Footer
         const finalY = doc.autoTable.previous.finalY;
-        const footerStartY = Math.max(finalY + 15, h - pad - 30); // Place at least 15mm below table, or at bottom of page
+        const footerStartY = Math.max(finalY + 15, h - pad - 30);
 
         if (footerText) {
           doc.setFontSize(8);
@@ -343,7 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (footerData) {
           const p = doc.getImageProperties(footerData);
-          const maxDim = 30; // Max dimension 30mm
+          const maxDim = 30;
           const aspect = p.width / p.height;
           let imgW = maxDim, imgH = maxDim;
           if (aspect > 1) { imgH = maxDim / aspect; } else { imgW = maxDim * aspect; }
@@ -353,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
         zip.file(`${inv}.pdf`, doc.output('blob'));
       }
 
-      // --- Finalize and Download ZIP ---
+      // Finalize ZIP
       if (Object.keys(zip.files).length > 0) {
         const blob = await zip.generateAsync({ type: 'blob' });
         saveAs(blob, 'invoices.zip');
@@ -366,7 +355,6 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error("PDF Generation Error:", err);
       showAlert(`An error occurred during PDF generation: ${err.message}`);
     } finally {
-      // --- Reset Button State ---
       generateBtn.disabled = false;
       generateBtn.innerText = 'Generate Invoices';
     }
