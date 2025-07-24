@@ -196,13 +196,8 @@
 
         const doc = new jsPDF({ unit, format: [w, h] });
         // embed custom font
-        if (customFontName) {
-          doc.addFileToVFS(customFontName, customFontData);
-          doc.addFont(customFontName, 'CustomFont', 'normal');
-          doc.setFont('CustomFont');
-        } else {
-          doc.setFont('helvetica');
-        }
+        doc.setFont('helvetica');
+
 
         const pad = 10;
         let y = pad;
