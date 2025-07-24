@@ -120,86 +120,195 @@
 
   <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script>
+
+
+
+  <script>
 document.addEventListener('DOMContentLoaded', () => {
   const { jsPDF } = window.jspdf;
 
-  // Unlock handler (unchanged) …
+  // Unlock logic
   document.getElementById('unlockBtn').addEventListener('click', async () => {
-    /* … your unlock code … */
+    const code = document.getElementById('unlockInput').value.trim();
+    const alertEl = document.getElementById('unlockAlert');
+    alertEl.innerHTML = '';
+    try {
+      const resp = await fetch('https://raw.githubusercontent.com/nasimulhasan/invoicegenerator/main/keys.json');
+      if (!resp.ok) throw new Error();
+      const { validCodes } = await resp.json();
+      if (validCodes.includes(code)) {
+        document.getElementById('unlockPage').classList.add('hidden');
+        document.getElementById('generatorPage').classList.remove('hidden');
+      } else {
+        alertEl.innerHTML = '<div class="alert alert-warning">Invalid code</div>';
+      }
+    } catch {
+      alertEl.innerHTML = '<div class="alert alert-danger">Error verifying code</div>';
+    }
   });
 
-  // Excel parsing (unchanged) …
+  // Parse Excel & populate invoices
   let parsedRows = [];
   document.getElementById('excelInput').addEventListener('change', async e => {
-    /* … your parsing code … */
+    const file = e.target.files[0];
+    if (!file) return;
+    const arr = await new Response(file).arrayBuffer();
+    const wb  = XLSX.read(arr, { type: 'array' });
+    parsedRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+
+    const invoices = [...new Set(parsedRows.map(r => (r.Invoice||'').trim()))];
+    const sel = document.getElementById('invoiceSelect');
+    sel.innerHTML = '';
+    invoices.forEach(inv => sel.append(new Option(inv, inv)));
+    document.getElementById('invoiceSelection').classList.remove('hidden');
   });
 
-  // Image loader helper (unchanged) …
+  // Image loader
   const loadImage = file => new Promise(res => {
-    /* … your FileReader code … */
+    if (!file) return res(null);
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.readAsDataURL(file);
   });
 
-  // Generate button
+  // Generate invoices
   document.getElementById('generateBtn').addEventListener('click', async () => {
-    /* … your preamble (logo, sheets, sizing) … */
+    const headerFile = document.getElementById('headerInput').files[0];
+    const footerFile = document.getElementById('footerInput').files[0];
+    const footerText = document.getElementById('footerText').value.trim();
+    const showDate   = document.getElementById('showDate').checked;
 
-    // after computing `bodyRows`, `w`, `h`, `pad` and setting `y`:
+    if (!headerFile) return alert('Please upload a logo.');
+    if (!parsedRows.length) return alert('Please upload and parse an Excel file.');
 
-    // 1) draw a top rule above the header
-    const lineX1 = pad, lineX2 = w - pad;
-    // we'll draw it at y - 2
-    doc.setLineWidth(0.8);
-    doc.line(lineX1, y - 2, lineX2, y - 2);
+    const headerData = await loadImage(headerFile);
+    const footerData = await loadImage(footerFile);
 
-    // 2) render the table itself, no borders
-    doc.autoTable({
-      head: [['Item','Qty','Price','Line Total']],
-      body: bodyRows,
-      startY: y,
-      theme: 'plain',
-      styles: { cellPadding: 2 },
-      columnStyles: {
-        // Item left‑aligned, others centered
-        1: { halign: 'center' },
-        2: { halign: 'center' },
-        3: { halign: 'center' }
+    let [w,h,unit] = document.getElementById('presetSize').value.split(',');
+    w = +w; h = +h;
+
+    const selected = Array.from(document.getElementById('invoiceSelect').selectedOptions)
+                          .map(o => o.value);
+    const targets = selected.length
+      ? selected
+      : [...new Set(parsedRows.map(r=>r.Invoice.trim()))];
+
+    const zip = new JSZip();
+
+    for (const inv of targets) {
+      const rows = parsedRows.filter(r=>r.Invoice.trim()===inv);
+      if (!rows.length) continue;
+
+      const doc = new jsPDF({ unit, format: [w, h] });
+      doc.setFont('helvetica');
+
+      const pad = 10;
+      let y = pad;
+
+      // HEADER: logo + shop details
+      if (headerData) {
+        const p = doc.getImageProperties(headerData);
+        const maxH = 30;
+        const logoH = Math.min(maxH, w * (p.height/p.width));
+        const logoW = logoH * (p.width/p.height);
+        doc.addImage(headerData,'PNG', pad, y, logoW, logoH);
       }
-    });
+      const shopName    = rows[0]['Shop Name']    || '';
+      const shopAddress = rows[0]['Shop Address'] || '';
+      doc.setFontSize(14);
+      doc.text(shopName, w - pad, y + 4, { align:'right' });
+      doc.setFontSize(10);
+      const addrLines = doc.splitTextToSize(shopAddress, w - 2*pad - 50);
+      doc.text(addrLines, w - pad, y + 10, { align:'right' });
 
-    // 3) draw a bottom rule under the header row
-    const headEnd = doc.autoTable.previous.finalY - doc.autoTable.previous.table.height 
-                  + doc.autoTable.previous.headHeight;
-    doc.setLineWidth(0.8);
-    doc.line(lineX1, headEnd + pad*0.2, lineX2, headEnd + pad*0.2);
+      y += Math.max(30, addrLines.length * 6) + 6;
 
-    // advance y past the entire table
-    y = doc.autoTable.previous.finalY + 10;
+      // optional date
+      if (showDate) {
+        doc.setFontSize(10);
+        doc.text(`Date: ${new Date().toLocaleDateString()}`, pad, y);
+        y += 8;
+      }
 
-    // 4) before printing subtotal, draw a thin divider
-    doc.setLineWidth(0.2);
-    doc.line(lineX1, y - 5, lineX2, y - 5);
+      // build table body
+      const bodyRows = rows.map(r => {
+        const qty   = parseInt(r.Quantity)||0;
+        const price = parseFloat(r.Price)||0;
+        return [
+          (r.Items||'').replace(/\//g,'\n'),
+          qty.toString(),
+          price.toFixed(2),
+          (qty*price).toFixed(2)
+        ];
+      });
 
-    // 5) render your Subtotal / Discount / Grand Total as before
-    doc.setFontSize(10);
-    doc.text('Subtotal:', lineX1, y);
-    doc.text(subTotal.toFixed(2), lineX2, y, { align: 'right' });
-    y += 6;
-    doc.text('Discount:', lineX1, y);
-    doc.text(discount.toFixed(2), lineX2, y, { align: 'right' });
-    y += 6;
-    doc.setFont('helvetica', 'bold');
-    doc.text('Grand Total:', lineX1, y);
-    doc.text(grand.toFixed(2), lineX2, y, { align: 'right' });
-    doc.setFont('helvetica', 'normal');
+      const x1 = pad, x2 = w - pad;
 
-    // … your footer, zipping, and download code …
+      // draw top rule above header
+      doc.setLineWidth(0.8);
+      doc.line(x1, y - 2, x2, y - 2);
+
+      // render table without borders
+      doc.autoTable({
+        head: [['Item','Qty','Price','Line Total']],
+        body: bodyRows,
+        startY: y,
+        theme: 'plain',
+        styles: { cellPadding: 2 },
+        columnStyles: {
+          1: { halign:'center' },
+          2: { halign:'center' },
+          3: { halign:'center' }
+        }
+      });
+
+      // draw bottom rule just under header row
+      const headerBottomY = y + doc.autoTable.previous.headHeight + 2;
+      doc.setLineWidth(0.8);
+      doc.line(x1, headerBottomY, x2, headerBottomY);
+
+      // advance y past table, draw thin rule before totals
+      y = doc.autoTable.previous.finalY + 10;
+      doc.setLineWidth(0.2);
+      doc.line(x1, y - 5, x2, y - 5);
+
+      // totals
+      const subTotal = bodyRows.reduce((sum,r)=>sum + parseFloat(r[3]), 0);
+      const discount = parseFloat(rows[0].Discount)||0;
+      const grand    = subTotal - discount;
+      doc.setFontSize(10);
+      doc.text('Subtotal:', pad, y);
+      doc.text(subTotal.toFixed(2), w - pad, y, { align:'right' }); y += 6;
+      doc.text('Discount:', pad, y);
+      doc.text(discount.toFixed(2), w - pad, y, { align:'right' }); y += 6;
+      doc.text('Grand Total:', pad, y);
+      doc.text(grand.toFixed(2), w - pad, y, { align:'right' });
+
+      // FOOTER
+      const footerY = h - pad - 20;
+      if (footerText) {
+        doc.setFontSize(8);
+        doc.text(footerText, pad, footerY, { maxWidth:(w-2*pad)/2 });
+      }
+      if (footerData) {
+        const p = doc.getImageProperties(footerData);
+        const maxDim = 1.5 * 25.4;
+        const aspect = p.width/p.height;
+        let imgW = maxDim, imgH = maxDim;
+        if (aspect > 1) imgH = maxDim/aspect;
+        else            imgW = maxDim*aspect;
+        doc.addImage(footerData,'PNG', w-pad-imgW, h-pad-imgH, imgW, imgH);
+      }
+
+      zip.file(`${inv}.pdf`, doc.output('blob'));
+    }
+
+    const blob = await zip.generateAsync({ type:'blob' });
+    saveAs(blob, 'invoices.zip');
   });
 });
 </script>
 
-
- 
    
 
 </body>
