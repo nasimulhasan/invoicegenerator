@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Invoice Generator</title>
+  <title>Custom Invoice Generator</title>
 
   <!-- Bootstrap CSS & Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
 
-  <!-- SheetJS & jsPDF UMD -->
+  <!-- SheetJS, jsPDF + AutoTable, JSZip, FileSaver -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.27/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.0/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 
@@ -22,9 +23,9 @@
 </head>
 <body>
   <div class="container d-flex justify-content-center">
-    <div class="w-50" style="max-width: 600px;">
+    <div class="w-50" style="max-width:600px;">
 
-      <!-- Unlock Page (identical to your label app) -->
+      <!-- Unlock Page -->
       <div id="unlockPage" class="card shadow-sm mb-4">
         <div class="card-body p-4 text-center">
           <h1 class="card-title mb-4">Enter Unlock Code</h1>
@@ -33,11 +34,11 @@
           <div id="unlockAlert"></div>
 
           <div class="mt-3 d-flex justify-content-center gap-3">
-            <a href="YOUTUBE_URL" target="_blank" class="text-decoration-none text-dark d-flex align-items-center">
+            <a href="YOUTUBE_URL" target="_blank" class="d-flex align-items-center text-decoration-none">
               <i class="bi bi-youtube fs-4 text-danger"></i><span class="ms-2">See instructions</span>
             </a>
-            <a href="https://wa.me/8801610926927" target="_blank" class="text-decoration-none text-success d-flex align-items-center">
-              <i class="bi bi-whatsapp fs-4"></i><span class="ms-2">Contact us</span>
+            <a href="https://wa.me/8801610926927" target="_blank" class="d-flex align-items-center text-decoration-none">
+              <i class="bi bi-whatsapp fs-4 text-success"></i><span class="ms-2">Contact us</span>
             </a>
           </div>
 
@@ -65,7 +66,7 @@
       <div id="generatorPage" class="hidden">
         <div class="card shadow-sm mb-4">
           <div class="card-body p-4">
-            <h1 class="card-title text-center mb-4">Custom Invoice Generator</h1>
+            <h1 class="card-title text-center mb-4">Invoice Generator</h1>
 
             <!-- Paper Size -->
             <div class="mb-3 row">
@@ -73,48 +74,46 @@
               <div class="col-sm-8">
                 <select id="presetSize" class="form-select">
                   <option value="210,297,mm">A4 Portrait</option>
-                  <option value="210,148.5,mm">Half A4 (portrait)</option>
-                  <option value="custom">Custom</option>
-                </select>
-              </div>
-            </div>
-            <div id="customSizeFields" class="mb-3 row d-none">
-              <div class="col-sm-4"><input type="number" id="paperWidth" class="form-control" placeholder="Width"></div>
-              <div class="col-sm-4"><input type="number" id="paperHeight" class="form-control" placeholder="Height"></div>
-              <div class="col-sm-4">
-                <select id="paperUnit" class="form-select">
-                  <option value="mm" selected>mm</option>
-                  <option value="in">in</option>
-                  <option value="pt">pt</option>
+                  <option value="210,148.5,mm">Half A4 Portrait</option>
                 </select>
               </div>
             </div>
 
+            <!-- Optional Date -->
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="showDate" checked>
+              <label class="form-check-label" for="showDate">Print Invoice Date</label>
+            </div>
+
             <!-- Inputs -->
-            <form id="labelForm">
-              <div class="mb-2">
-                <label class="form-label">Upload Font (.ttf/.otf)</label>
-                <input type="file" id="fontInput" class="form-control" accept=".ttf,.otf">
-              </div>
-              <div class="mb-2">
-                <label class="form-label">Upload Logo</label>
-                <input type="file" id="headerInput" class="form-control" accept="image/*">
-              </div>
-              <div class="mb-2">
-                <label class="form-label">Upload Footer Text/Image</label>
-                <input type="file" id="footerInput" class="form-control" accept="image/*">
-                <!-- add a textarea in future for full‑width footer text -->
-              </div>
-              <div class="mb-2">
-                <label class="form-label">Excel File</label>
-                <input type="file" id="excelInput" class="form-control" accept=".xls,.xlsx">
-              </div>
-              <div id="invoiceSelection" class="mb-2 hidden">
-                <label class="form-label">Select Invoices</label>
-                <select id="invoiceSelect" class="form-select" multiple size="8"></select>
-              </div>
-              <button type="button" id="generateBtn" class="btn btn-primary w-100">Generate Invoices</button>
-            </form>
+            <div class="mb-2">
+              <label class="form-label">Upload Font (.ttf/.otf)</label>
+              <input type="file" id="fontInput" class="form-control" accept=".ttf,.otf">
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Upload Logo</label>
+              <input type="file" id="headerInput" class="form-control" accept="image/*">
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Footer Text (optional)</label>
+              <textarea id="footerText" class="form-control" rows="2"
+                placeholder="Enter footer text"></textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Footer QR/Image (optional)</label>
+              <input type="file" id="footerInput" class="form-control" accept="image/*">
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Excel File (template)</label>
+              <input type="file" id="excelInput" class="form-control" accept=".xls,.xlsx">
+            </div>
+            <div id="invoiceSelection" class="mb-2 hidden">
+              <label class="form-label">Select Invoices</label>
+              <select id="invoiceSelect" class="form-select" multiple size="8"></select>
+            </div>
+            <button type="button" id="generateBtn" class="btn btn-primary w-100 mt-2">
+              Generate Invoices
+            </button>
             <div id="alertPlaceholder" class="mt-3"></div>
           </div>
         </div>
@@ -131,7 +130,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     const { jsPDF } = window.jspdf;
 
-    // Unlock
+    // 1) Unlock
     document.getElementById('unlockBtn').addEventListener('click', async () => {
       const code = document.getElementById('unlockInput').value.trim();
       const alertEl = document.getElementById('unlockAlert');
@@ -150,95 +149,170 @@
       }
     });
 
-    // Paper‑size toggle
-    document.getElementById('presetSize').addEventListener('change', e => {
-      document.getElementById('customSizeFields').classList.toggle('d-none', e.target.value!=='custom');
-    });
-
-    // Parse Excel & populate list
+    // 2) Parse Excel & Populate
     let parsedRows = [];
     document.getElementById('excelInput').addEventListener('change', async e => {
-      const f = e.target.files[0]; if (!f) return;
-      const arr = await new Response(f).arrayBuffer();
-      const wb  = XLSX.read(arr,{type:'array'});
-      parsedRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
-      const invs = [...new Set(parsedRows.map(r=>(r['Invoice']||'').trim()))];
-      const sel  = document.getElementById('invoiceSelect');
-      sel.innerHTML='';
-      invs.forEach(inv=>sel.append(new Option(inv,inv)));
+      const file = e.target.files[0]; if (!file) return;
+      const arr = await new Response(file).arrayBuffer();
+      const wb  = XLSX.read(arr, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      // shop header from A1
+      window.shopHeader = (sheet.A1?.v || '').split('/').map(s=>s.trim());
+      parsedRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      // skip headers row2 automatically
+      const invoices = [...new Set(parsedRows.map(r => (r.Invoice||'').trim()))];
+      const sel = document.getElementById('invoiceSelect');
+      sel.innerHTML = '';
+      invoices.forEach(inv => sel.append(new Option(inv, inv)));
       document.getElementById('invoiceSelection').classList.remove('hidden');
     });
 
-    // Load Font
+    // 3) Load custom font
     let customFontName, customFontData;
     document.getElementById('fontInput').addEventListener('change', async e => {
-      const f = e.target.files[0]; if(!f) return;
-      const url = await new Promise(res=>{const r=new FileReader();r.onload=()=>res(r.result);r.readAsDataURL(f)});
+      const f = e.target.files[0]; if (!f) return;
+      const dataUrl = await new Promise(res => {
+        const r = new FileReader(); r.onload = ()=>res(r.result); r.readAsDataURL(f);
+      });
       customFontName = f.name;
-      customFontData = url.split(',')[1];
+      customFontData = dataUrl.split(',')[1];
     });
 
-    // Generate
-    document.getElementById('generateBtn').addEventListener('click', async ()=>{
-      const hdrF = document.getElementById('headerInput').files[0];
-      const ftrF = document.getElementById('footerInput').files[0];
-      if(!hdrF||!ftrF) return alert('Select logo and footer image');
-      if(!parsedRows.length) return alert('Upload Excel first');
+    // 4) Utility to read image
+    const loadImage = file => new Promise(res => {
+      if(!file) return res(null);
+      const r = new FileReader(); r.onload = ()=>res(r.result); r.readAsDataURL(file);
+    });
 
-      const [hdrData,ftrData] = await Promise.all([hdrF,ftrF].map(file=>new Promise(res=>{
-        const r=new FileReader();r.onload=()=>res(r.result);r.readAsDataURL(file);
-      })));
+    // 5) Generate Invoices
+    document.getElementById('generateBtn').addEventListener('click', async () => {
+      const headerFile = document.getElementById('headerInput').files[0];
+      const footerFile = document.getElementById('footerInput').files[0];
+      const footerText = document.getElementById('footerText').value.trim();
+      const showDate = document.getElementById('showDate').checked;
+      if (!headerFile) return alert('Please upload a logo.');
+      if (!parsedRows.length) return alert('Please upload and parse an Excel file.');
 
+      const headerData = await loadImage(headerFile);
+      const footerData = await loadImage(footerFile);
+
+      // determine page size
       let [w,h,unit] = document.getElementById('presetSize').value.split(',');
-      if(w==='custom'){
-        w=+document.getElementById('paperWidth').value;
-        h=+document.getElementById('paperHeight').value;
-        unit=document.getElementById('paperUnit').value;
-        if(unit==='in'){w*=25.4;h*=25.4;unit='mm'}
-        if(unit==='pt'){w*=0.352778;h*=0.352778;unit='mm'}
-      } else {w=+w;h=+h}
+      w = +w; h = +h; // unit remains 'mm'
 
-      const zip=new JSZip();
-      const targets = Array.from(document.getElementById('invoiceSelect').selectedOptions).map(o=>o.value);
-      for(const inv of (targets.length?targets:[...new Set(parsedRows.map(r=>r.Invoice.trim()))])){
-        const group = parsedRows.filter(r=>(r.Invoice||'').trim()===inv);
-        if(!group.length) continue;
-        const doc=new jsPDF({unit,format:[w,h]});
-        // apply font
-        if(customFontName){
+      // group by invoice
+      const selected = Array.from(document.getElementById('invoiceSelect')
+                        .selectedOptions).map(o=>o.value);
+      const targets = selected.length ? selected
+        : [...new Set(parsedRows.map(r=>r.Invoice.trim()))];
+
+      const zip = new JSZip();
+      for (const inv of targets) {
+        const rows = parsedRows.filter(r=>r.Invoice.trim()===inv);
+        if (!rows.length) continue;
+
+        const doc = new jsPDF({ unit, format: [w, h] });
+        // apply custom font
+        if (customFontName) {
           doc.addFileToVFS(customFontName, customFontData);
-          doc.addFont(customFontName,'CustomFont','normal');
+          doc.addFont(customFontName, 'CustomFont', 'normal');
           doc.setFont('CustomFont');
         } else {
           doc.setFont('helvetica');
         }
-        // header
-        const hp=doc.getImageProperties(hdrData), hh=w*(hp.height/hp.width);
-        doc.addImage(hdrData,'PNG',0,0,w,hh);
-        // footer
-        const fp=doc.getImageProperties(ftrData), fh=w*(fp.height/fp.width);
-        doc.addImage(ftrData,'PNG',0,h-fh,w,fh);
-        // text
-        let y=hh+8;
-        doc.setFontSize(10);
-        doc.text(`Invoice #: ${inv}`,10,y); y+=6;
-        const row=group[0];
-        const name=`${row['First Name']||''} ${row['Last Name']||''}`.trim();
-        doc.text(`Name: ${name}`,10,y); y+=6;
-        doc.text(`Phone: ${row['Phone']||''}`,10,y); y+=6;
-        const addrLines=doc.splitTextToSize(row['Address']||'',w-20);
-        doc.text('Address:',10,y); doc.text(addrLines, 40,y); y+=addrLines.length*6;
-        doc.text(`Total: ${row['Order Total Amount']||''}`,10,y); y+=6;
-        // items
-        doc.text('Items:',10,y); y+=6;
-        group.forEach(r=>{
-          const it=r['Items']||'', qt=r['Quantity']?` x${r['Quantity']}`:'';
-          if(it){ doc.text(`- ${it}${qt}`,14,y); y+=6; }
+
+        const pad = 10;
+        let y = pad;
+
+        // header shop info (right‑aligned)
+        if (window.shopHeader) {
+          doc.setFontSize(14);
+          window.shopHeader.forEach((line,i) => {
+            doc.text(line, w - pad, y + i*6, { align: 'right' });
+          });
+          y += window.shopHeader.length * 6 + 4;
+        }
+
+        // optional date
+        if (showDate) {
+          doc.setFontSize(10);
+          const ds = new Date().toLocaleDateString();
+          doc.text(`Date: ${ds}`, pad, y);
+          y += 8;
+        }
+
+        // logo (auto‑resize to max 30mm height)
+        if (headerData) {
+          const props = doc.getImageProperties(headerData);
+          const maxH  = 30;
+          const imgH  = Math.min(maxH, w * (props.height / props.width));
+          const imgW  = imgH * (props.width / props.height);
+          doc.addImage(headerData, 'PNG', pad, y, imgW, imgH);
+          y += imgH + 6;
+        }
+
+        // build table data
+        const body = rows.map(r => {
+          const qty   = parseInt(r.Quantity) || 0;
+          const price = parseFloat(r.Price) || 0;
+          const lineTotal = qty * price;
+          return [
+            r.Items.replace(/\//g, '\n'),
+            qty,
+            price.toFixed(2),
+            lineTotal.toFixed(2)
+          ];
         });
-        zip.file(`${inv}.pdf`,doc.output('blob'));
+
+        // draw table
+        doc.autoTable({
+          head: [['Item', 'Qty', 'Price', 'Line Total']],
+          body,
+          startY: y,
+          theme: 'grid',
+          styles: { lineWidth: 0.2 },
+          headStyles: { fillColor: null, textColor: 0, lineWidth: 0.8 },
+          tableLineColor: 0,
+          tableLineWidth: (row,data) => data.section === 'head' ? 0.8 : 0.2,
+          columnStyles: {
+            0: { cellWidth: w - pad*2 - 120 },
+            1: { halign: 'right' },
+            2: { halign: 'right' },
+            3: { halign: 'right' }
+          }
+        });
+        y = doc.lastAutoTable.finalY + 4;
+
+        // subtotal, discount, total
+        const subTotal = body.reduce((sum, r)=>(sum + parseFloat(r[3])), 0);
+        const discount = parseFloat(rows[0].Discount) || 0;
+        const grandTotal = subTotal - discount;
+
+        doc.setFontSize(10);
+        doc.text(`Subtotal:`, pad, y);               doc.text(subTotal.toFixed(2), w - pad, y, { align: 'right' }); y+=6;
+        doc.text(`Discount:`, pad, y);               doc.text(discount.toFixed(2), w - pad, y, { align: 'right' }); y+=6;
+        doc.text(`Grand Total:`, pad, y);            doc.text(grandTotal.toFixed(2), w - pad, y, { align: 'right' }); y+=10;
+
+        // footer text
+        if (footerText) {
+          doc.setFontSize(8);
+          doc.text(footerText, pad, h - pad - (footerData ? 30 : 0), { maxWidth: w - pad*2 });
+        }
+        // footer image flush bottom
+        if (footerData) {
+          const propsF = doc.getImageProperties(footerData);
+          const fh = w * (propsF.height / propsF.width);
+          doc.addImage(footerData, 'PNG', pad, h - pad - fh, w - pad*2, fh);
+        }
+
+        zip.file(`${inv}.pdf`, doc.output('blob'));
       }
-      const blob=await zip.generateAsync({type:'blob'});
-      saveAs(blob,'invoices.zip');
+
+      const blob = await zip.generateAsync({ type:'blob' });
+      saveAs(blob, 'invoices.zip');
     });
+
   });
-</script>
+  </script>
+</body>
+</html>
