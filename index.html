@@ -261,36 +261,29 @@ document.addEventListener('DOMContentLoaded', () => {
       ];
 
       // draw table with no vertical borders
-      doc.autoTable({
+     doc.autoTable({
   head: [
     ['Item','Qty','Price','Line Total']
   ],
   body: bodyRows,
   foot: [
-    // a full‑width thin divider
-    [{ content: '', colSpan: 4, styles: { fillColor: null, lineWidth: 0.2 } }],
-    // the actual totals
+    // thin divider row
+    [{ content: '', colSpan: 4, styles: { fillColor: null } }],
+    // Subtotal / Discount / Grand Total
     ['Subtotal', '', '', subTotal.toFixed(2)],
     ['Discount', '', '', discount.toFixed(2)],
     [{ content: 'Grand Total', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, grand.toFixed(2)]
   ],
   startY: y,
-  theme: 'grid',
-  // remove all vertical lines:
-  drawCell: data => {
-    data.cell.styles.lineWidth = {
-      top:    data.cell.styles.lineWidth || 0.2,
-      bottom: data.cell.styles.lineWidth || 0.2,
-      left:   0,
-      right:  0
-    };
-  },
-  // thicker horizontal lines in head and between foot sections
+  theme: 'plain',              // <-- no borders at all by default
   tableLineWidth: (row, data) => {
-    if (data.section === 'head' || data.section === 'foot' && data.row.index === 0) {
-      return 0.8;
-    }
-    return 0.2;
+    // draw a thick line above the header
+    if (data.section === 'head') return 0.8;
+    // draw a thin line above the totals divider (foot row 0)
+    if (data.section === 'foot' && data.row.index === 0) return 0.2;
+    // draw a thin line below each foot row
+    if (data.section === 'foot') return 0.2;
+    return 0;                   // no other lines
   },
   headStyles: {
     fillColor: null,
@@ -300,11 +293,10 @@ document.addEventListener('DOMContentLoaded', () => {
   footStyles: {
     fillColor: null,
     textColor: 0,
-    lineWidth: 0.8
+    lineWidth: 0.2
   },
   styles: {
     lineColor: 0,
-    lineWidth: 0.2,
     cellPadding: 2
   },
   columnStyles: {
@@ -314,6 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
     3: { halign: 'right' }
   }
 });
+
 
 
       // FOOTER
