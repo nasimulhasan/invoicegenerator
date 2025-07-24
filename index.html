@@ -249,43 +249,36 @@ y = headerY + Math.max(logoH, shopBlockH) + 6;
           ];
         });
 
-        doc.autoTable({
+       doc.autoTable({ 
   head: [['Item','Qty','Price','Line Total']],
   body,
   startY: y,
-  theme: 'grid',
-  tableLineColor: 0,            // black lines
-  tableLineWidth: (row, data) =>
-    data.section === 'head' ? 0.8 : 0.2,
-  headStyles: {
-    fillColor: false,           // no background color
-    textColor: 0,
-    lineWidth: 0.8
-  },
-  styles: {
-    lineColor: 0,
-    lineWidth: 0.2,
-    cellPadding: 2
-  },
-  columnStyles: {
-    0: { cellWidth: w - 2*pad - 120 },
-    1: { halign: 'right' },
-    2: { halign: 'right' },
-    3: { halign: 'right' }
-  },
-  drawCell: data => {
-    // remove vertical borders on all cells
-    const lw = data.cell.styles.lineWidth;
-    if (data.section === 'body' || data.section === 'head') {
-      data.cell.styles.lineWidth = {
-        top:    lw.top    || lw,
-        bottom: lw.bottom || lw,
-        left:   0,
-        right:  0
-      };
-    }
-  }
+  /* … your existing table options … */
 });
+
+// 1) compute where the table ended
+const tableEndY = doc.lastAutoTable.finalY;
+// 2) give yourself extra breathing room (10pt)
+y = tableEndY + 10;
+
+// now draw totals at the new y
+const subTotal = body.reduce((s,row)=>s + parseFloat(row[3]), 0);
+const discount = parseFloat(rows[0].Discount)||0;
+const grand    = subTotal - discount;
+
+doc.setFontSize(10);
+doc.text(`Subtotal:`, pad, y);
+doc.text(subTotal.toFixed(2), w - pad, y, { align:'right' });
+y += 6;
+
+doc.text(`Discount:`, pad, y);
+doc.text(discount.toFixed(2), w - pad, y, { align:'right' });
+y += 6;
+
+doc.text(`Grand Total:`, pad, y);
+doc.text(grand.toFixed(2), w - pad, y, { align:'right' });
+y += 10;
+
 
 
         // totals
