@@ -219,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const pad = 10;
         let y = pad;
 
-        // Header: Logo and Shop Details
+        // --- Header: Logo and Shop Details ---
         let logoH = 0;
         if (headerData) {
           const p = doc.getImageProperties(headerData);
@@ -229,13 +229,18 @@ document.addEventListener('DOMContentLoaded', () => {
           const logoW = logoH * logoAspectRatio;
           doc.addImage(headerData, 'PNG', pad, y, logoW, logoH);
         }
+        
+        // ======================= MODIFICATION START (Shop Address) =========================
         const shopName = firstRow['Shop Name'] || '';
         const shopAddress = firstRow['Shop Address'] || '';
+        const shopAddressMaxWidth = (w - pad * 2) - (logoH > 0 ? (logoH * (doc.getImageProperties(headerData).width / doc.getImageProperties(headerData).height) + 5) : 0);
+        
         doc.setFontSize(14).text(shopName, w - pad, y + 4, { align: 'right' });
         doc.setFontSize(10);
-        const addrLines = doc.splitTextToSize(shopAddress, w / 2 - pad);
+        const addrLines = doc.splitTextToSize(shopAddress, shopAddressMaxWidth);
         doc.text(addrLines, w - pad, y + 10, { align: 'right' });
         y += Math.max(logoH, 10 + addrLines.length * 5) + 10;
+        // ======================= MODIFICATION END =========================
 
         // "INVOICE" Title
         doc.setFontSize(22).setFont(undefined, 'bold');
@@ -243,15 +248,11 @@ document.addEventListener('DOMContentLoaded', () => {
         doc.setFont(undefined, 'normal');
         y += 15;
         
-        // ======================= MODIFICATION START =========================
-        
         // --- Customer Details and Date ---
         const firstName = (firstRow['First Name'] || '').toString().trim();
         const lastName = (firstRow['Last Name'] || '').toString().trim();
         const customerPhone = (firstRow['Phone'] || '').toString().trim();
         const customerAddress = (firstRow['Address'] || '').toString().trim();
-
-        // Intelligently combine First and Last Name
         const fullName = [firstName, lastName].filter(Boolean).join(' ');
         
         doc.setFontSize(10).setFont(undefined, 'bold');
@@ -259,20 +260,17 @@ document.addEventListener('DOMContentLoaded', () => {
         doc.setFont(undefined, 'normal');
         
         let customerInfo = [];
-        if (fullName) customerInfo.push(fullName); // Use the combined full name
+        if (fullName) customerInfo.push(fullName);
         if (customerPhone) customerInfo.push(`Phone: ${customerPhone}`);
         if (customerAddress) customerInfo.push(...doc.splitTextToSize(customerAddress, w/2 - pad));
         
         doc.text(customerInfo, pad, y + 5);
 
-        // Date on the right side
         if (showDate) {
           doc.setFontSize(10).text(`Date: ${new Date().toLocaleDateString()}`, w - pad, y, { align: 'right' });
         }
         
         y += (customerInfo.length * 5) + 10;
-        
-        // ======================== MODIFICATION END ==========================
 
         // --- Table ---
         const body = rows.map(r => {
@@ -304,18 +302,19 @@ document.addEventListener('DOMContentLoaded', () => {
             3: { halign: 'right' }
           },
           didParseCell: (data) => {
-            const isSummaryRow = data.row.raw[2] === 'Subtotal' || 
-                                 data.row.raw[2] === 'Discount' ||
-                                 data.row.raw[2] === 'Grand Total';
+            const isSummaryRow = ['Subtotal', 'Discount', 'Grand Total'].includes(data.row.raw[2]);
             if (data.section === 'body' && isSummaryRow) {
               data.cell.styles.fontStyle = 'bold';
             }
           }
         });
 
+        // ======================= MODIFICATION START (Footer Image) =========================
         // --- Footer ---
         const finalY = doc.autoTable.previous.finalY;
-        const footerStartY = Math.max(finalY + 15, h - pad - 30);
+        // Ensure footer start position is always within the page
+        const footerStartY = Math.min(h - 40, Math.max(finalY + 15, h - 40));
+
         if (footerText) {
           doc.setFontSize(8);
           const textLines = doc.splitTextToSize(footerText.replace(/\//g, '\n'), (w - 2 * pad) / 2);
@@ -323,12 +322,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (footerData) {
           const p = doc.getImageProperties(footerData);
-          const maxDim = 30;
+          // Make max image dimensions relative to page width
+          const maxDim = w * 0.15; // e.g., max 15% of page width
           const aspect = p.width / p.height;
           let imgW = maxDim, imgH = maxDim;
           if (aspect > 1) { imgH = maxDim / aspect; } else { imgW = maxDim * aspect; }
+          // Position the image at the bottom right corner
           doc.addImage(footerData, 'PNG', w - pad - imgW, h - pad - imgH, imgW, imgH);
         }
+        // ======================== MODIFICATION END ==========================
         zip.file(`${inv}.pdf`, doc.output('blob'));
       }
 
