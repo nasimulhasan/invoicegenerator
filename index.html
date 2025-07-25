@@ -207,6 +207,12 @@ document.addEventListener('DOMContentLoaded', () => {
       let [w, h, unit] = selectedSizeValue.split(',');
       w = +w; h = +h;
 
+      // ======================= MODIFICATION START =========================
+      // Define a fixed footer height to reserve space at the bottom.
+      const isHalfA4 = selectedSizeValue === '210,148.5,mm';
+      const FOOTER_MARGIN = isHalfA4 ? 40 : 40; // 40mm footer for both for consistency
+      // ======================== MODIFICATION END ==========================
+
       const selectedOptions = Array.from(document.getElementById('invoiceSelect').selectedOptions).map(o => o.value);
       const allInvoices = [...new Set(parsedRows.map(r => r.Invoice.toString().trim()))];
       const targetInvoices = selectedOptions.length ? selectedOptions : allInvoices;
@@ -224,7 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let logoW, logoH;
         if (headerData) {
-          if (selectedSizeValue === '210,148.5,mm') {
+          if (isHalfA4) {
             logoW = 25.4; logoH = 25.4;
           } else {
             const p = doc.getImageProperties(headerData);
@@ -292,6 +298,8 @@ document.addEventListener('DOMContentLoaded', () => {
           body: body,
           startY: y,
           theme: 'grid',
+          // THIS IS THE KEY: Reserve space at the bottom so the table never overlaps the footer.
+          marginBottom: FOOTER_MARGIN,
           styles: { cellPadding: 2, fontSize: 10 },
           headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold' },
           columnStyles: { 
@@ -306,32 +314,26 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
         
-        // ======================= ROBUST FOOTER FIX START ==========================
-        // This section now draws the footer in a fixed position at the bottom of the page.
-        // This guarantees visibility regardless of table height.
-
+        // --- FIXED FOOTER DRAWING ---
+        // This logic now draws in the safe area reserved by the marginBottom.
         if (footerText) {
           doc.setFontSize(8);
-          // Position text a fixed distance from the bottom-left of the page.
-          doc.text(footerText, pad, h - 15, { maxWidth: (w / 2) - pad });
+          doc.text(footerText, pad, h - FOOTER_MARGIN + 15, { maxWidth: (w / 2) - pad });
         }
         if (footerData) {
           let imgW, imgH;
-          if (selectedSizeValue === '210,148.5,mm') {
-            imgW = 25.4; // 1 inch
-            imgH = 25.4; // 1 inch
+          if (isHalfA4) {
+            imgW = 25.4; imgH = 25.4;
           } else {
             const p = doc.getImageProperties(footerData);
-            const maxDim = w * 0.15;
+            const maxDim = 30; // Max dimension for A4
             const aspect = p.width / p.height;
             imgW = maxDim; imgH = maxDim;
             if (aspect > 1) { imgH = maxDim / aspect; } else { imgW = maxDim * aspect; }
           }
-          // Calculate Y position to align the bottom of the image with the bottom page margin.
-          const imageY = h - pad - imgH;
+          const imageY = h - pad - imgH; // Align to bottom page margin
           doc.addImage(footerData, 'PNG', w - pad - imgW, imageY, imgW, imgH);
         }
-        // ======================== ROBUST FOOTER FIX END ==========================
 
         zip.file(`${inv}.pdf`, doc.output('blob'));
       }
@@ -343,8 +345,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         showAlert('No invoices were selected or found to generate.', 'warning');
       }
-    } catch (err)
- {
+    } catch (err) {
       console.error("PDF Generation Error:", err);
       showAlert(`An error occurred during PDF generation: ${err.message}`, 'danger');
     } finally {
