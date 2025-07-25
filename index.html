@@ -5,14 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Custom Invoice Generator</title>
 
-  <!-- Bootstrap CSS & Icons -->
+  <!-- Libraries -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
-
-  <!-- SheetJS, jsPDF + AutoTable, JSZip, FileSaver -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.27/dist/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.28/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.0/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 
@@ -27,7 +25,8 @@
 
       <!-- Unlock Page -->
       <div id="unlockPage" class="card shadow-sm mb-4">
-        <div class="card-body p-4 text-center">
+        <!-- ... unlock page content ... -->
+         <div class="card-body p-4 text-center">
           <h1 class="card-title mb-4">Enter Unlock Code</h1>
           <input type="text" id="unlockInput" class="form-control mb-3" placeholder="Enter unlock code">
           <button id="unlockBtn" class="btn btn-primary w-100 mb-3">Unlock</button>
@@ -59,6 +58,7 @@
 
       <!-- Generator Page -->
       <div id="generatorPage" class="hidden">
+        <!-- ... generator page form ... -->
         <div class="card shadow-sm mb-4">
           <div class="card-body p-4">
             <h1 class="card-title text-center mb-4">Invoice Generator</h1>
@@ -111,6 +111,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   const { jsPDF } = window.jspdf;
 
+  // --- UI Elements and Helper Functions ---
   const unlockBtn = document.getElementById('unlockBtn');
   const generateBtn = document.getElementById('generateBtn');
   const alertPlaceholder = document.getElementById('alertPlaceholder');
@@ -119,38 +120,39 @@ document.addEventListener('DOMContentLoaded', () => {
     alertPlaceholder.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
   };
 
-  const loadImage = file => new Promise((resolve, reject) => {
+  const loadImage = file => new Promise((resolve) => {
     if (!file) return resolve(null);
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
-    reader.onerror = error => reject(error);
+    reader.onerror = () => resolve(null); // Resolve null on error
     reader.readAsDataURL(file);
   });
 
-  unlockBtn.addEventListener('click', async () => {
-    const code = document.getElementById('unlockInput').value.trim();
-    const alertEl = document.getElementById('unlockAlert');
-    alertEl.innerHTML = '';
-    unlockBtn.disabled = true;
-    try {
-      const resp = await fetch('https://raw.githubusercontent.com/nasimulhasan/invoicegenerator/main/keys.json');
-      if (!resp.ok) throw new Error('Network response was not ok.');
-      const { validCodes } = await resp.json();
-      if (validCodes && validCodes.includes(code)) {
-        document.getElementById('unlockPage').classList.add('hidden');
-        document.getElementById('generatorPage').classList.remove('hidden');
-      } else {
-        alertEl.innerHTML = '<div class="alert alert-warning">Invalid code. Please try again.</div>';
+  // --- Event Listeners ---
+  unlockBtn.addEventListener('click', async () => { /* ... unlock logic ... */ 
+      const code = document.getElementById('unlockInput').value.trim();
+      const alertEl = document.getElementById('unlockAlert');
+      alertEl.innerHTML = '';
+      unlockBtn.disabled = true;
+      try {
+        const resp = await fetch('https://raw.githubusercontent.com/nasimulhasan/invoicegenerator/main/keys.json');
+        if (!resp.ok) throw new Error('Network response was not ok.');
+        const { validCodes } = await resp.json();
+        if (validCodes && validCodes.includes(code)) {
+          document.getElementById('unlockPage').classList.add('hidden');
+          document.getElementById('generatorPage').classList.remove('hidden');
+        } else {
+          alertEl.innerHTML = '<div class="alert alert-warning">Invalid code. Please try again.</div>';
+        }
+      } catch(err) {
+        console.error("Unlock Error:", err);
+        alertEl.innerHTML = '<div class="alert alert-danger">Error verifying code. Check your internet connection.</div>';
+      } finally {
+        unlockBtn.disabled = false;
       }
-    } catch(err) {
-      console.error("Unlock Error:", err);
-      alertEl.innerHTML = '<div class="alert alert-danger">Error verifying code. Check your internet connection.</div>';
-    } finally {
-      unlockBtn.disabled = false;
-    }
   });
-
-  document.getElementById('excelInput').addEventListener('change', async e => {
+  
+  document.getElementById('excelInput').addEventListener('change', async e => { /* ... excel parsing logic ... */ 
     const file = e.target.files[0];
     const invoiceSelectionDiv = document.getElementById('invoiceSelection');
     const invoiceSelect = document.getElementById('invoiceSelect');
@@ -184,166 +186,132 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   generateBtn.addEventListener('click', async () => {
-    alertPlaceholder.innerHTML = ''; 
-    const { parsedRows } = window;
-    if (!parsedRows || parsedRows.length === 0) {
-      return showAlert('Please upload a valid Excel file first.', 'warning');
-    }
-    if (!document.getElementById('headerInput').files[0]) {
-      return showAlert('Please upload a logo image for the header.', 'warning');
-    }
+    alertPlaceholder.innerHTML = '';
+    if (!window.parsedRows || window.parsedRows.length === 0) return showAlert('Please upload an Excel file first.', 'warning');
+    if (!document.getElementById('headerInput').files[0]) return showAlert('Please upload a logo.', 'warning');
 
     generateBtn.disabled = true;
-    generateBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...`;
+    generateBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Generating...`;
 
     try {
       const headerFile = document.getElementById('headerInput').files[0];
       const footerFile = document.getElementById('footerInput').files[0];
       const footerText = document.getElementById('footerText').value.trim();
       const showDate = document.getElementById('showDate').checked;
+      
       const [headerData, footerData] = await Promise.all([loadImage(headerFile), loadImage(footerFile)]);
       
       const selectedSizeValue = document.getElementById('presetSize').value;
       let [w, h, unit] = selectedSizeValue.split(',');
       w = +w; h = +h;
-
-      // ======================= MODIFICATION START =========================
-      // Define a fixed footer height to reserve space at the bottom.
       const isHalfA4 = selectedSizeValue === '210,148.5,mm';
-      const FOOTER_MARGIN = isHalfA4 ? 40 : 40; // 40mm footer for both for consistency
-      // ======================== MODIFICATION END ==========================
 
-      const selectedOptions = Array.from(document.getElementById('invoiceSelect').selectedOptions).map(o => o.value);
-      const allInvoices = [...new Set(parsedRows.map(r => r.Invoice.toString().trim()))];
-      const targetInvoices = selectedOptions.length ? selectedOptions : allInvoices;
+      const targets = Array.from(document.getElementById('invoiceSelect').selectedOptions).map(o => o.value);
+      if (targets.length === 0) {
+          showAlert('Please select at least one invoice to generate.', 'warning');
+          return; // Early exit
+      }
+
       const zip = new JSZip();
 
-      for (const inv of targetInvoices) {
+      for (const inv of targets) {
         const doc = new jsPDF({ unit, format: [w, h] });
-        const rows = parsedRows.filter(r => r.Invoice.toString().trim() === inv);
+        const rows = window.parsedRows.filter(r => String(r.Invoice).trim() === inv);
         if (rows.length === 0) continue;
 
         const firstRow = rows[0];
-        doc.setFont('helvetica');
         const pad = 10;
         let y = pad;
 
+        // --- Header Drawing ---
         let logoW, logoH;
         if (headerData) {
-          if (isHalfA4) {
-            logoW = 25.4; logoH = 25.4;
-          } else {
-            const p = doc.getImageProperties(headerData);
-            const maxH = 30;
-            const logoAspectRatio = p.width / p.height;
-            logoH = Math.min(maxH, w * (1 / logoAspectRatio));
-            logoW = logoH * logoAspectRatio;
-          }
-          doc.addImage(headerData, 'PNG', pad, y, logoW, logoH);
+            if (isHalfA4) { logoW = 25.4; logoH = 25.4; } 
+            else {
+                const p = doc.getImageProperties(headerData);
+                logoH = 30; logoW = logoH * (p.width / p.height);
+            }
+            doc.addImage(headerData, 'PNG', pad, y, logoW, logoH);
         }
         
-        const shopName = firstRow['Shop Name'] || '';
-        const shopAddress = firstRow['Shop Address'] || '';
-        doc.setFontSize(14).text(shopName, w - pad, y + 4, { align: 'right' });
-        doc.setFontSize(10);
-        const addrLines = doc.splitTextToSize(shopAddress, w / 2 - pad);
-        doc.text(addrLines, w - pad, y + 10, { align: 'right' });
-        y += Math.max(logoH || 0, 10 + addrLines.length * 5) + 10;
-        
-        doc.setFontSize(22).setFont(undefined, 'bold');
-        doc.text('INVOICE', w / 2, y, { align: 'center' });
-        doc.setFont(undefined, 'normal');
+        doc.setFont('helvetica', 'bold').setFontSize(14).text(firstRow['Shop Name'] || '', w - pad, y + 4, { align: 'right' });
+        doc.setFont('helvetica', 'normal').setFontSize(10).text(doc.splitTextToSize(firstRow['Shop Address'] || '', w/2.5), w - pad, y + 10, { align: 'right' });
+        y += Math.max(logoH || 0, 10) + 10;
+
+        doc.setFont('helvetica', 'bold').setFontSize(22).text('INVOICE', w / 2, y, { align: 'center' });
         y += 15;
         
-        const firstName = (firstRow['First Name'] || '').toString().trim();
-        const lastName = (firstRow['Last Name'] || '').toString().trim();
-        const customerPhone = (firstRow['Phone'] || '').toString().trim();
-        const customerAddress = (firstRow['Address'] || '').toString().trim();
-        const fullName = [firstName, lastName].filter(Boolean).join(' ');
-        
-        doc.setFontSize(10).setFont(undefined, 'bold');
-        doc.text('Bill To:', pad, y);
-        doc.setFont(undefined, 'normal');
-        
+        const fullName = [firstRow['First Name'], firstRow['Last Name']].filter(Boolean).join(' ');
         let customerInfo = [];
-        if (fullName) customerInfo.push(fullName);
-        if (customerPhone) customerInfo.push(`Phone: ${customerPhone}`);
-        if (customerAddress) customerInfo.push(...doc.splitTextToSize(customerAddress, w/2 - pad));
+        if(fullName) customerInfo.push(fullName);
+        if(firstRow['Phone']) customerInfo.push(`Phone: ${firstRow['Phone']}`);
+        if(firstRow['Address']) customerInfo.push(...doc.splitTextToSize(firstRow['Address'], w/2.2));
         
-        doc.text(customerInfo, pad, y + 5);
-
-        if (showDate) {
-          doc.setFontSize(10).text(`Date: ${new Date().toLocaleDateString()}`, w - pad, y, { align: 'right' });
-        }
-        
+        doc.setFont('helvetica', 'bold').text('Bill To:', pad, y);
+        doc.setFont('helvetica', 'normal').text(customerInfo, pad, y + 5);
+        if (showDate) doc.text(`Date: ${new Date().toLocaleDateString()}`, w - pad, y, { align: 'right' });
         y += (customerInfo.length * 5) + 10;
 
-        const body = rows.map(r => {
-          const qty = parseInt(r.Quantity) || 0;
-          const price = parseFloat(r.Price) || 0;
-          return [ (r.Items || '').replace(/\//g, '\n'), qty.toString(), price.toFixed(2), (qty * price).toFixed(2) ];
-        });
+        // --- Table Body Preparation ---
+        const body = rows.map(r => [
+            r.Items || '',
+            String(parseInt(r.Quantity) || 0),
+            (parseFloat(r.Price) || 0).toFixed(2),
+            ( (parseInt(r.Quantity) || 0) * (parseFloat(r.Price) || 0) ).toFixed(2)
+        ]);
+
         const subTotal = body.reduce((sum, row) => sum + parseFloat(row[3]), 0);
         const discount = parseFloat(firstRow.Discount) || 0;
         const grandTotal = subTotal - discount;
 
-        body.push(
-          ['', '', 'Subtotal', subTotal.toFixed(2)],
-          ['', '', 'Discount', discount.toFixed(2)],
-          ['', '', 'Grand Total', grandTotal.toFixed(2)]
-        );
+        body.push(['', '', 'Subtotal', subTotal.toFixed(2)]);
+        body.push(['', '', 'Discount', discount.toFixed(2)]);
+        body.push(['', '', 'Grand Total', grandTotal.toFixed(2)]);
 
+        // --- Table Drawing with Footer Hook ---
         doc.autoTable({
-          head: [['Item', 'Qty', 'Price', 'Line Total']],
-          body: body,
-          startY: y,
-          theme: 'grid',
-          // THIS IS THE KEY: Reserve space at the bottom so the table never overlaps the footer.
-          marginBottom: FOOTER_MARGIN,
-          styles: { cellPadding: 2, fontSize: 10 },
-          headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold' },
-          columnStyles: { 
-            0: { cellWidth: 'auto' }, 1: { halign: 'center' },
-            2: { halign: 'right' }, 3: { halign: 'right' }
-          },
-          didParseCell: (data) => {
-            const isSummaryRow = ['Subtotal', 'Discount', 'Grand Total'].includes(data.row.raw[2]);
-            if (data.section === 'body' && isSummaryRow) {
-              data.cell.styles.fontStyle = 'bold';
+            head: [['Item', 'Qty', 'Price', 'Line Total']],
+            body: body,
+            startY: y,
+            theme: 'grid',
+            headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold' },
+            columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
+            didParseCell: (data) => {
+                const isSummary = ['Subtotal', 'Discount', 'Grand Total'].includes(data.row.raw[2]);
+                if (data.section === 'body' && isSummary) data.cell.styles.fontStyle = 'bold';
+            },
+            
+            // ======================= THE CORRECT FOOTER SOLUTION ========================
+            // This function is called AFTER the table is drawn on EACH page.
+            // It's the perfect place to draw page-stable elements like footers.
+            didDrawPage: (data) => {
+                if (footerText) {
+                    doc.setFontSize(8).text(footerText, pad, h - 15, { maxWidth: w / 2 - pad });
+                }
+                if (footerData) {
+                    let imgW, imgH;
+                    if (isHalfA4) { imgW = 25.4; imgH = 25.4; }
+                    else {
+                        const p = doc.getImageProperties(footerData);
+                        imgH = 25; imgW = imgH * (p.width / p.height);
+                    }
+                    // Calculate Y position to align the BOTTOM of the image with the page margin
+                    const imageY = h - pad - imgH;
+                    doc.addImage(footerData, 'PNG', w - pad - imgW, imageY, imgW, imgH);
+                }
             }
-          }
+            // ======================== END OF SOLUTION ==========================
         });
-        
-        // --- FIXED FOOTER DRAWING ---
-        // This logic now draws in the safe area reserved by the marginBottom.
-        if (footerText) {
-          doc.setFontSize(8);
-          doc.text(footerText, pad, h - FOOTER_MARGIN + 15, { maxWidth: (w / 2) - pad });
-        }
-        if (footerData) {
-          let imgW, imgH;
-          if (isHalfA4) {
-            imgW = 25.4; imgH = 25.4;
-          } else {
-            const p = doc.getImageProperties(footerData);
-            const maxDim = 30; // Max dimension for A4
-            const aspect = p.width / p.height;
-            imgW = maxDim; imgH = maxDim;
-            if (aspect > 1) { imgH = maxDim / aspect; } else { imgW = maxDim * aspect; }
-          }
-          const imageY = h - pad - imgH; // Align to bottom page margin
-          doc.addImage(footerData, 'PNG', w - pad - imgW, imageY, imgW, imgH);
-        }
 
         zip.file(`${inv}.pdf`, doc.output('blob'));
       }
 
-      if (Object.keys(zip.files).length > 0) {
+      if (zip.files && Object.keys(zip.files).length > 0) {
         const blob = await zip.generateAsync({ type: 'blob' });
         saveAs(blob, 'invoices.zip');
         showAlert('Successfully generated invoices.zip!', 'success');
       } else {
-        showAlert('No invoices were selected or found to generate.', 'warning');
+        showAlert('No invoices were generated. Please check selections.', 'warning');
       }
     } catch (err) {
       console.error("PDF Generation Error:", err);
