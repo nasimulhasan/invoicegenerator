@@ -222,15 +222,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const pad = 10;
         let y = pad;
 
-        // ======================= MODIFICATION START (Conditional Sizing) =========================
         let logoW, logoH;
         if (headerData) {
-          // Check if Half A4 is selected for fixed sizing
           if (selectedSizeValue === '210,148.5,mm') {
-            logoW = 25.4; // 1 inch
-            logoH = 25.4; // 1 inch
+            logoW = 25.4; logoH = 25.4;
           } else {
-            // Original dynamic sizing for A4
             const p = doc.getImageProperties(headerData);
             const maxH = 30;
             const logoAspectRatio = p.width / p.height;
@@ -248,13 +244,11 @@ document.addEventListener('DOMContentLoaded', () => {
         doc.text(addrLines, w - pad, y + 10, { align: 'right' });
         y += Math.max(logoH || 0, 10 + addrLines.length * 5) + 10;
         
-        // --- "INVOICE" Title ---
         doc.setFontSize(22).setFont(undefined, 'bold');
         doc.text('INVOICE', w / 2, y, { align: 'center' });
         doc.setFont(undefined, 'normal');
         y += 15;
         
-        // --- Customer Details and Date ---
         const firstName = (firstRow['First Name'] || '').toString().trim();
         const lastName = (firstRow['Last Name'] || '').toString().trim();
         const customerPhone = (firstRow['Phone'] || '').toString().trim();
@@ -278,7 +272,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         y += (customerInfo.length * 5) + 10;
 
-        // --- Table ---
         const body = rows.map(r => {
           const qty = parseInt(r.Quantity) || 0;
           const price = parseFloat(r.Price) || 0;
@@ -302,10 +295,8 @@ document.addEventListener('DOMContentLoaded', () => {
           styles: { cellPadding: 2, fontSize: 10 },
           headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold' },
           columnStyles: { 
-            0: { cellWidth: 'auto' },
-            1: { halign: 'center' },
-            2: { halign: 'right' },
-            3: { halign: 'right' }
+            0: { cellWidth: 'auto' }, 1: { halign: 'center' },
+            2: { halign: 'right' }, 3: { halign: 'right' }
           },
           didParseCell: (data) => {
             const isSummaryRow = ['Subtotal', 'Discount', 'Grand Total'].includes(data.row.raw[2]);
@@ -315,36 +306,32 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
         
-        // --- Footer ---
-        const finalY = doc.autoTable.previous.finalY;
-        // More robust footer Y-position calculation to prevent overlap.
-        // It ensures the footer starts below the table but also leaves enough margin from the page bottom.
-        const footerStartY = Math.max(finalY + 15, h - 35);
+        // ======================= ROBUST FOOTER FIX START ==========================
+        // This section now draws the footer in a fixed position at the bottom of the page.
+        // This guarantees visibility regardless of table height.
 
         if (footerText) {
           doc.setFontSize(8);
-          const textLines = doc.splitTextToSize(footerText.replace(/\//g, '\n'), (w - 2 * pad) / 2);
-          doc.text(textLines, pad, footerStartY);
+          // Position text a fixed distance from the bottom-left of the page.
+          doc.text(footerText, pad, h - 15, { maxWidth: (w / 2) - pad });
         }
         if (footerData) {
           let imgW, imgH;
-          // Check if Half A4 is selected for fixed sizing
           if (selectedSizeValue === '210,148.5,mm') {
             imgW = 25.4; // 1 inch
             imgH = 25.4; // 1 inch
           } else {
-            // Original dynamic sizing for A4
             const p = doc.getImageProperties(footerData);
             const maxDim = w * 0.15;
             const aspect = p.width / p.height;
-            imgW = maxDim;
-            imgH = maxDim;
+            imgW = maxDim; imgH = maxDim;
             if (aspect > 1) { imgH = maxDim / aspect; } else { imgW = maxDim * aspect; }
           }
-          // Position image relative to the safe footer start position
-          doc.addImage(footerData, 'PNG', w - pad - imgW, footerStartY, imgW, imgH);
+          // Calculate Y position to align the bottom of the image with the bottom page margin.
+          const imageY = h - pad - imgH;
+          doc.addImage(footerData, 'PNG', w - pad - imgW, imageY, imgW, imgH);
         }
-        // ======================== MODIFICATION END ==========================
+        // ======================== ROBUST FOOTER FIX END ==========================
 
         zip.file(`${inv}.pdf`, doc.output('blob'));
       }
@@ -356,7 +343,8 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         showAlert('No invoices were selected or found to generate.', 'warning');
       }
-    } catch (err) {
+    } catch (err)
+ {
       console.error("PDF Generation Error:", err);
       showAlert(`An error occurred during PDF generation: ${err.message}`, 'danger');
     } finally {
