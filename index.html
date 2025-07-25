@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Custom Invoice Generator</title>
+  <title>A4 Invoice Generator</title>
 
   <!-- Libraries -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
@@ -25,7 +25,6 @@
 
       <!-- Unlock Page -->
       <div id="unlockPage" class="card shadow-sm mb-4">
-        <!-- ... unlock page content ... -->
          <div class="card-body p-4 text-center">
           <h1 class="card-title mb-4">Enter Unlock Code</h1>
           <input type="text" id="unlockInput" class="form-control mb-3" placeholder="Enter unlock code">
@@ -58,19 +57,12 @@
 
       <!-- Generator Page -->
       <div id="generatorPage" class="hidden">
-        <!-- ... generator page form ... -->
         <div class="card shadow-sm mb-4">
           <div class="card-body p-4">
-            <h1 class="card-title text-center mb-4">Invoice Generator</h1>
-            <div class="mb-3 row">
-              <label class="col-sm-4 col-form-label">Paper Size</label>
-              <div class="col-sm-8">
-                <select id="presetSize" class="form-select">
-                  <option value="210,297,mm">A4 Portrait</option>
-                  <option value="210,148.5,mm">Half A4 Portrait</option>
-                </select>
-              </div>
-            </div>
+            <h1 class="card-title text-center mb-4">A4 Invoice Generator</h1>
+            
+            <!-- REMOVED: Paper Size selection is gone for simplicity -->
+
             <div class="form-check mb-3">
               <input class="form-check-input" type="checkbox" id="showDate" checked>
               <label class="form-check-label" for="showDate">Print Invoice Date</label>
@@ -124,12 +116,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!file) return resolve(null);
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
-    reader.onerror = () => resolve(null); // Resolve null on error
+    reader.onerror = () => resolve(null);
     reader.readAsDataURL(file);
   });
 
   // --- Event Listeners ---
-  unlockBtn.addEventListener('click', async () => { /* ... unlock logic ... */ 
+  unlockBtn.addEventListener('click', async () => { 
       const code = document.getElementById('unlockInput').value.trim();
       const alertEl = document.getElementById('unlockAlert');
       alertEl.innerHTML = '';
@@ -152,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
   });
   
-  document.getElementById('excelInput').addEventListener('change', async e => { /* ... excel parsing logic ... */ 
+  document.getElementById('excelInput').addEventListener('change', async e => {
     const file = e.target.files[0];
     const invoiceSelectionDiv = document.getElementById('invoiceSelection');
     const invoiceSelect = document.getElementById('invoiceSelect');
@@ -201,21 +193,21 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const [headerData, footerData] = await Promise.all([loadImage(headerFile), loadImage(footerFile)]);
       
-      const selectedSizeValue = document.getElementById('presetSize').value;
-      let [w, h, unit] = selectedSizeValue.split(',');
-      w = +w; h = +h;
-      const isHalfA4 = selectedSizeValue === '210,148.5,mm';
+      // ======================= SIMPLIFICATION START =========================
+      // Hardcode page size to A4. No more selection.
+      const w = 210, h = 297, unit = 'mm';
+      // ======================== SIMPLIFICATION END ==========================
 
       const targets = Array.from(document.getElementById('invoiceSelect').selectedOptions).map(o => o.value);
       if (targets.length === 0) {
           showAlert('Please select at least one invoice to generate.', 'warning');
-          return; // Early exit
+          return;
       }
 
       const zip = new JSZip();
 
       for (const inv of targets) {
-        const doc = new jsPDF({ unit, format: [w, h] });
+        const doc = new jsPDF({ unit, format: 'a4', orientation: 'portrait' });
         const rows = window.parsedRows.filter(r => String(r.Invoice).trim() === inv);
         if (rows.length === 0) continue;
 
@@ -224,19 +216,16 @@ document.addEventListener('DOMContentLoaded', () => {
         let y = pad;
 
         // --- Header Drawing ---
-        let logoW, logoH;
         if (headerData) {
-            if (isHalfA4) { logoW = 25.4; logoH = 25.4; } 
-            else {
-                const p = doc.getImageProperties(headerData);
-                logoH = 30; logoW = logoH * (p.width / p.height);
-            }
+            const p = doc.getImageProperties(headerData);
+            const logoH = 30; // Max height 30mm
+            const logoW = logoH * (p.width / p.height);
             doc.addImage(headerData, 'PNG', pad, y, logoW, logoH);
         }
         
         doc.setFont('helvetica', 'bold').setFontSize(14).text(firstRow['Shop Name'] || '', w - pad, y + 4, { align: 'right' });
         doc.setFont('helvetica', 'normal').setFontSize(10).text(doc.splitTextToSize(firstRow['Shop Address'] || '', w/2.5), w - pad, y + 10, { align: 'right' });
-        y += Math.max(logoH || 0, 10) + 10;
+        y += 30 + 10; // Fixed spacing after header
 
         doc.setFont('helvetica', 'bold').setFontSize(22).text('INVOICE', w / 2, y, { align: 'center' });
         y += 15;
@@ -281,26 +270,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.section === 'body' && isSummary) data.cell.styles.fontStyle = 'bold';
             },
             
-            // ======================= THE CORRECT FOOTER SOLUTION ========================
-            // This function is called AFTER the table is drawn on EACH page.
-            // It's the perfect place to draw page-stable elements like footers.
+            // This robust hook draws the footer on every page, guaranteeing visibility.
             didDrawPage: (data) => {
+                // Footer Text
                 if (footerText) {
                     doc.setFontSize(8).text(footerText, pad, h - 15, { maxWidth: w / 2 - pad });
                 }
+                // Footer Image
                 if (footerData) {
-                    let imgW, imgH;
-                    if (isHalfA4) { imgW = 25.4; imgH = 25.4; }
-                    else {
-                        const p = doc.getImageProperties(footerData);
-                        imgH = 25; imgW = imgH * (p.width / p.height);
-                    }
-                    // Calculate Y position to align the BOTTOM of the image with the page margin
-                    const imageY = h - pad - imgH;
+                    const p = doc.getImageProperties(footerData);
+                    const imgH = 25; // Fixed height for footer image
+                    const imgW = imgH * (p.width / p.height);
+                    const imageY = h - pad - imgH; // Align image bottom to page margin
                     doc.addImage(footerData, 'PNG', w - pad - imgW, imageY, imgW, imgH);
                 }
             }
-            // ======================== END OF SOLUTION ==========================
         });
 
         zip.file(`${inv}.pdf`, doc.output('blob'));
