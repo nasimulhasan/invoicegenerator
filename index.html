@@ -61,8 +61,6 @@
           <div class="card-body p-4">
             <h1 class="card-title text-center mb-4">A4 Invoice Generator</h1>
             
-            <!-- REMOVED: Paper Size selection is gone for simplicity -->
-
             <div class="form-check mb-3">
               <input class="form-check-input" type="checkbox" id="showDate" checked>
               <label class="form-check-label" for="showDate">Print Invoice Date</label>
@@ -103,7 +101,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   const { jsPDF } = window.jspdf;
 
-  // --- UI Elements and Helper Functions ---
   const unlockBtn = document.getElementById('unlockBtn');
   const generateBtn = document.getElementById('generateBtn');
   const alertPlaceholder = document.getElementById('alertPlaceholder');
@@ -120,7 +117,6 @@ document.addEventListener('DOMContentLoaded', () => {
     reader.readAsDataURL(file);
   });
 
-  // --- Event Listeners ---
   unlockBtn.addEventListener('click', async () => { 
       const code = document.getElementById('unlockInput').value.trim();
       const alertEl = document.getElementById('unlockAlert');
@@ -193,10 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const [headerData, footerData] = await Promise.all([loadImage(headerFile), loadImage(footerFile)]);
       
-      // ======================= SIMPLIFICATION START =========================
-      // Hardcode page size to A4. No more selection.
       const w = 210, h = 297, unit = 'mm';
-      // ======================== SIMPLIFICATION END ==========================
 
       const targets = Array.from(document.getElementById('invoiceSelect').selectedOptions).map(o => o.value);
       if (targets.length === 0) {
@@ -218,27 +211,39 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- Header Drawing ---
         if (headerData) {
             const p = doc.getImageProperties(headerData);
-            const logoH = 30; // Max height 30mm
+            const logoH = 30;
             const logoW = logoH * (p.width / p.height);
             doc.addImage(headerData, 'PNG', pad, y, logoW, logoH);
         }
         
         doc.setFont('helvetica', 'bold').setFontSize(14).text(firstRow['Shop Name'] || '', w - pad, y + 4, { align: 'right' });
         doc.setFont('helvetica', 'normal').setFontSize(10).text(doc.splitTextToSize(firstRow['Shop Address'] || '', w/2.5), w - pad, y + 10, { align: 'right' });
-        y += 30 + 10; // Fixed spacing after header
+        y += 30 + 10;
 
         doc.setFont('helvetica', 'bold').setFontSize(22).text('INVOICE', w / 2, y, { align: 'center' });
         y += 15;
         
+        // ======================= MODIFICATION START =========================
+        
+        // --- Customer Details and Date ---
         const fullName = [firstRow['First Name'], firstRow['Last Name']].filter(Boolean).join(' ');
         let customerInfo = [];
         if(fullName) customerInfo.push(fullName);
         if(firstRow['Phone']) customerInfo.push(`Phone: ${firstRow['Phone']}`);
         if(firstRow['Address']) customerInfo.push(...doc.splitTextToSize(firstRow['Address'], w/2.2));
         
-        doc.setFont('helvetica', 'bold').text('Bill To:', pad, y);
-        doc.setFont('helvetica', 'normal').text(customerInfo, pad, y + 5);
-        if (showDate) doc.text(`Date: ${new Date().toLocaleDateString()}`, w - pad, y, { align: 'right' });
+        // Set font for the "Bill To" label specifically
+        doc.setFont('helvetica', 'bold').setFontSize(10).text('Bill To:', pad, y);
+
+        // Set a smaller font size for the actual customer info and date
+        doc.setFont('helvetica', 'normal').setFontSize(9);
+        doc.text(customerInfo, pad, y + 5);
+        if (showDate) {
+            doc.text(`Date: ${new Date().toLocaleDateString()}`, w - pad, y, { align: 'right' });
+        }
+        
+        // ======================== MODIFICATION END ==========================
+
         y += (customerInfo.length * 5) + 10;
 
         // --- Table Body Preparation ---
@@ -270,7 +275,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.section === 'body' && isSummary) data.cell.styles.fontStyle = 'bold';
             },
             
-            // This robust hook draws the footer on every page, guaranteeing visibility.
             didDrawPage: (data) => {
                 // Footer Text
                 if (footerText) {
@@ -279,9 +283,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Footer Image
                 if (footerData) {
                     const p = doc.getImageProperties(footerData);
-                    const imgH = 25; // Fixed height for footer image
+                    const imgH = 25;
                     const imgW = imgH * (p.width / p.height);
-                    const imageY = h - pad - imgH; // Align image bottom to page margin
+                    const imageY = h - pad - imgH;
                     doc.addImage(footerData, 'PNG', w - pad - imgW, imageY, imgW, imgH);
                 }
             }
