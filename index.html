@@ -202,8 +202,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const footerText = document.getElementById('footerText').value.trim();
       const showDate = document.getElementById('showDate').checked;
       const [headerData, footerData] = await Promise.all([loadImage(headerFile), loadImage(footerFile)]);
-      let [w, h, unit] = document.getElementById('presetSize').value.split(',');
+      
+      const selectedSizeValue = document.getElementById('presetSize').value;
+      let [w, h, unit] = selectedSizeValue.split(',');
       w = +w; h = +h;
+
       const selectedOptions = Array.from(document.getElementById('invoiceSelect').selectedOptions).map(o => o.value);
       const allInvoices = [...new Set(parsedRows.map(r => r.Invoice.toString().trim()))];
       const targetInvoices = selectedOptions.length ? selectedOptions : allInvoices;
@@ -219,30 +222,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const pad = 10;
         let y = pad;
 
-        // --- Header: Logo and Shop Details ---
-        let logoH = 0;
+        // ======================= MODIFICATION START (Conditional Sizing) =========================
+        let logoW, logoH;
         if (headerData) {
-          const p = doc.getImageProperties(headerData);
-          const maxH = 30;
-          const logoAspectRatio = p.width / p.height;
-          logoH = Math.min(maxH, w * (1 / logoAspectRatio));
-          const logoW = logoH * logoAspectRatio;
+          // Check if Half A4 is selected for fixed sizing
+          if (selectedSizeValue === '210,148.5,mm') {
+            logoW = 25.4; // 1 inch
+            logoH = 25.4; // 1 inch
+          } else {
+            // Original dynamic sizing for A4
+            const p = doc.getImageProperties(headerData);
+            const maxH = 30;
+            const logoAspectRatio = p.width / p.height;
+            logoH = Math.min(maxH, w * (1 / logoAspectRatio));
+            logoW = logoH * logoAspectRatio;
+          }
           doc.addImage(headerData, 'PNG', pad, y, logoW, logoH);
         }
         
-        // ======================= MODIFICATION START (Shop Address) =========================
         const shopName = firstRow['Shop Name'] || '';
         const shopAddress = firstRow['Shop Address'] || '';
-        const shopAddressMaxWidth = (w - pad * 2) - (logoH > 0 ? (logoH * (doc.getImageProperties(headerData).width / doc.getImageProperties(headerData).height) + 5) : 0);
-        
         doc.setFontSize(14).text(shopName, w - pad, y + 4, { align: 'right' });
         doc.setFontSize(10);
-        const addrLines = doc.splitTextToSize(shopAddress, shopAddressMaxWidth);
+        const addrLines = doc.splitTextToSize(shopAddress, w / 2 - pad);
         doc.text(addrLines, w - pad, y + 10, { align: 'right' });
-        y += Math.max(logoH, 10 + addrLines.length * 5) + 10;
-        // ======================= MODIFICATION END =========================
-
-        // "INVOICE" Title
+        y += Math.max(logoH || 0, 10 + addrLines.length * 5) + 10;
+        
+        // --- "INVOICE" Title ---
         doc.setFontSize(22).setFont(undefined, 'bold');
         doc.text('INVOICE', w / 2, y, { align: 'center' });
         doc.setFont(undefined, 'normal');
@@ -308,12 +314,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
         });
-
-        // ======================= MODIFICATION START (Footer Image) =========================
+        
         // --- Footer ---
         const finalY = doc.autoTable.previous.finalY;
-        // Ensure footer start position is always within the page
-        const footerStartY = Math.min(h - 40, Math.max(finalY + 15, h - 40));
+        // More robust footer Y-position calculation to prevent overlap.
+        // It ensures the footer starts below the table but also leaves enough margin from the page bottom.
+        const footerStartY = Math.max(finalY + 15, h - 35);
 
         if (footerText) {
           doc.setFontSize(8);
@@ -321,16 +327,25 @@ document.addEventListener('DOMContentLoaded', () => {
           doc.text(textLines, pad, footerStartY);
         }
         if (footerData) {
-          const p = doc.getImageProperties(footerData);
-          // Make max image dimensions relative to page width
-          const maxDim = w * 0.15; // e.g., max 15% of page width
-          const aspect = p.width / p.height;
-          let imgW = maxDim, imgH = maxDim;
-          if (aspect > 1) { imgH = maxDim / aspect; } else { imgW = maxDim * aspect; }
-          // Position the image at the bottom right corner
-          doc.addImage(footerData, 'PNG', w - pad - imgW, h - pad - imgH, imgW, imgH);
+          let imgW, imgH;
+          // Check if Half A4 is selected for fixed sizing
+          if (selectedSizeValue === '210,148.5,mm') {
+            imgW = 25.4; // 1 inch
+            imgH = 25.4; // 1 inch
+          } else {
+            // Original dynamic sizing for A4
+            const p = doc.getImageProperties(footerData);
+            const maxDim = w * 0.15;
+            const aspect = p.width / p.height;
+            imgW = maxDim;
+            imgH = maxDim;
+            if (aspect > 1) { imgH = maxDim / aspect; } else { imgW = maxDim * aspect; }
+          }
+          // Position image relative to the safe footer start position
+          doc.addImage(footerData, 'PNG', w - pad - imgW, footerStartY, imgW, imgH);
         }
         // ======================== MODIFICATION END ==========================
+
         zip.file(`${inv}.pdf`, doc.output('blob'));
       }
 
